@@ -55,7 +55,7 @@ def run_buildozer(cmds, contents):
     with tempfile.NamedTemporaryFile(mode='w') as cmd_file:
         # We send the BUILD contents to buildozer on stdin and receive the
         # transformed BUILD on stdout. The commands are provided in a file.
-        cmd_input = '\n'.join('%s|-:%s' % (cmd, target) for cmd, target in cmds)
+        cmd_input = '\n'.join(f'{cmd}|-:{target}' for cmd, target in cmds)
         cmd_file.write(cmd_input)
         cmd_file.flush()
         r = subprocess.run([BUILDOZER_PATH, '-stdout', '-f', cmd_file.name],
@@ -63,13 +63,11 @@ def run_buildozer(cmds, contents):
                            stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
         # Buildozer uses 3 for success but no change (0 is success and changed).
-        if r.returncode != 0 and r.returncode != 3:
-            raise EnvoyBuildFixerError('buildozer execution failed: %s' % r)
+        if r.returncode not in [0, 3]:
+            raise EnvoyBuildFixerError(f'buildozer execution failed: {r}')
         # Sometimes buildozer feels like returning nothing when the transform is a
         # nop.
-        if not r.stdout:
-            return contents
-        return r.stdout.decode('utf-8')
+        return r.stdout.decode('utf-8') if r.stdout else contents
 
 
 # Add an Apache 2 license and envoy_package() import and rule as needed.
@@ -98,11 +96,11 @@ def fix_package_and_license(path, contents):
         ], contents)
         # Envoy package is inserted after the load block containing the
         # envoy_package import.
-        package_and_parens = package_string + '()'
+        package_and_parens = f'{package_string}()'
         if package_and_parens[:-1] not in contents:
             contents = re.sub(regex_to_use, r'\1\n%s\n\n' % package_and_parens, contents)
             if package_and_parens not in contents:
-                raise EnvoyBuildFixerError('Unable to insert %s' % package_and_parens)
+                raise EnvoyBuildFixerError(f'Unable to insert {package_and_parens}')
 
     # Delete old licenses.
     if re.search(OLD_LICENSES_REGEX, contents):
@@ -119,7 +117,7 @@ def buildifier_lint(contents):
                        stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE)
     if r.returncode != 0:
-        raise EnvoyBuildFixerError('buildifier execution failed: %s' % r)
+        raise EnvoyBuildFixerError(f'buildifier execution failed: {r}')
     return r.stdout.decode('utf-8')
 
 
@@ -128,9 +126,8 @@ def find_api_headers(source_path):
     api_hdrs = set([])
     contents = pathlib.Path(source_path).read_text(encoding='utf8')
     for line in contents.split('\n'):
-        match = re.match(API_INCLUDE_REGEX, line)
-        if match:
-            api_hdrs.add(match.group(1))
+        if match := re.match(API_INCLUDE_REGEX, line):
+            api_hdrs.add(match[1])
     return api_hdrs
 
 
@@ -176,20 +173,20 @@ def fix_api_deps(path, contents):
             # We're not smart enough to infer on generated files.
             if os.path.exists(p):
                 api_hdrs = api_hdrs.union(find_api_headers(p))
-        actual_api_deps = set(['@envoy_api//%s:pkg_cc_proto' % h for h in api_hdrs])
+        actual_api_deps = {f'@envoy_api//{h}:pkg_cc_proto' for h in api_hdrs}
         existing_api_deps = set([])
         if deps != 'missing':
-            existing_api_deps = set([
-                d for d in deps.split()
-                if d.startswith('@envoy_api') and d.endswith('pkg_cc_proto')
+            existing_api_deps = {
+                d
+                for d in deps.split()
+                if d.startswith('@envoy_api')
+                and d.endswith('pkg_cc_proto')
                 and d != '@com_github_cncf_udpa//udpa/annotations:pkg_cc_proto'
-            ])
-        deps_to_remove = existing_api_deps.difference(actual_api_deps)
-        if deps_to_remove:
-            deps_mutation_cmds.append(('remove deps %s' % ' '.join(deps_to_remove), name))
-        deps_to_add = actual_api_deps.difference(existing_api_deps)
-        if deps_to_add:
-            deps_mutation_cmds.append(('add deps %s' % ' '.join(deps_to_add), name))
+            }
+        if deps_to_remove := existing_api_deps.difference(actual_api_deps):
+            deps_mutation_cmds.append((f"remove deps {' '.join(deps_to_remove)}", name))
+        if deps_to_add := actual_api_deps.difference(existing_api_deps):
+            deps_mutation_cmds.append((f"add deps {' '.join(deps_to_add)}", name))
     return run_buildozer(deps_mutation_cmds, contents)
 
 
@@ -215,5 +212,5 @@ if __name__ == '__main__':
         with open(sys.argv[2], 'w') as f:
             f.write(reorderd_source)
         sys.exit(0)
-    print('Usage: %s <source file path> [<destination file path>]' % sys.argv[0])
+    print(f'Usage: {sys.argv[0]} <source file path> [<destination file path>]')
     sys.exit(1)

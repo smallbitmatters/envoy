@@ -96,18 +96,20 @@ def get_destination_path(src):
     if 'contrib' in src:
         if 'v3alpha' not in package and 'v4alpha' not in package and package not in CONTRIB_V3_ALLOW_LIST:
             raise ProtoSyncError(
-                "contrib extension package '{}' does not use v3alpha namespace. "
-                "Add to CONTRIB_V3_ALLOW_LIST with an explanation if this is on purpose.".format(
-                    package))
+                f"contrib extension package '{package}' does not use v3alpha namespace. Add to CONTRIB_V3_ALLOW_LIST with an explanation if this is on purpose."
+            )
 
         dst_path = pathlib.Path('contrib').joinpath(dst_path)
     # Non-contrib can not use alpha.
-    if not 'contrib' in src:
-        if (not 'v2alpha' in package and not 'v1alpha1' in package) and 'alpha' in package:
-            raise ProtoSyncError(
-                "package '{}' uses an alpha namespace. This is not allowed. Instead mark with "
-                "(xds.annotations.v3.file_status).work_in_progress or related annotation.".format(
-                    package))
+    if (
+        'contrib' not in src
+        and 'v2alpha' not in package
+        and 'v1alpha1' not in package
+        and 'alpha' in package
+    ):
+        raise ProtoSyncError(
+            f"package '{package}' uses an alpha namespace. This is not allowed. Instead mark with (xds.annotations.v3.file_status).work_in_progress or related annotation."
+        )
     return dst_path
 
 
@@ -128,7 +130,7 @@ def sync_proto_file(srcs, dst):
         src = [s for s in srcs if s.endswith('active_or_frozen.proto')][0]
     shutil.copy(src, dst)
     rel_dst_path = get_destination_path(src)
-    return ['//%s:pkg' % str(rel_dst_path.parent)]
+    return [f'//{str(rel_dst_path.parent)}:pkg']
 
 
 def get_import_deps(proto_path):
@@ -143,9 +145,8 @@ def get_import_deps(proto_path):
     imports = []
     with open(proto_path, 'r', encoding='utf8') as f:
         for line in f:
-            match = re.match(IMPORT_REGEX, line)
-            if match:
-                import_path = match.group(1)
+            if match := re.match(IMPORT_REGEX, line):
+                import_path = match[1]
                 # We can ignore imports provided implicitly by api_proto_package().
                 if any(import_path.startswith(p) for p in API_BUILD_SYSTEM_IMPORT_PREFIXES):
                     continue
@@ -172,7 +173,7 @@ def get_import_deps(proto_path):
                     # Ignore package internal imports.
                     if os.path.dirname(proto_path).endswith(os.path.dirname(import_path)):
                         continue
-                    imports.append('//%s:pkg' % os.path.dirname(import_path))
+                    imports.append(f'//{os.path.dirname(import_path)}:pkg')
                     continue
                 raise ProtoSyncError(
                     'Unknown import path mapping for %s, please update the mappings in tools/proto_format/proto_sync.py.\n'
@@ -211,18 +212,23 @@ def build_file_contents(root, files):
     Returns:
         A string containing the canonical BUILD file content for root.
     """
-    deps = set(sum([get_import_deps(os.path.join(root, f)) for f in files], []))
+    deps = set(sum((get_import_deps(os.path.join(root, f)) for f in files), []))
     _has_services = any(has_services(os.path.join(root, f)) for f in files)
     fields = []
     if _has_services:
         fields.append('    has_services = True,')
     if deps:
         if len(deps) == 1:
-            formatted_deps = '"%s"' % list(deps)[0]
+            formatted_deps = f'"{list(deps)[0]}"'
         else:
-            formatted_deps = '\n' + '\n'.join(
-                '        "%s",' % dep for dep in sorted(deps, key=build_order_key)) + '\n    '
-        fields.append('    deps = [%s],' % formatted_deps)
+            formatted_deps = (
+                '\n'
+                + '\n'.join(
+                    f'        "{dep}",'
+                    for dep in sorted(deps, key=build_order_key)
+                )
+            ) + '\n    '
+        fields.append(f'    deps = [{formatted_deps}],')
     formatted_fields = '\n' + '\n'.join(fields) + '\n' if fields else ''
     return BUILD_FILE_TEMPLATE.substitute(fields=formatted_fields)
 

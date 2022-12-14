@@ -8,10 +8,7 @@ healthy = True
 @app.route('/')
 def hello():
     global healthy
-    if healthy:
-        return f"Hello from {os.environ['HOST']}!\n"
-    else:
-        return "Unhealthy", 503
+    return f"Hello from {os.environ['HOST']}!\n" if healthy else ("Unhealthy", 503)
 
 
 @app.route('/healthy')

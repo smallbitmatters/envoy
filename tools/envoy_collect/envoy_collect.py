@@ -134,11 +134,11 @@ def run_envoy(envoy_shcmd_args, envoy_log_path, admin_address_path, dump_handler
             # The read is deferred until the signal so that the Envoy process gets a
             # chance to write the file out.
             with open(admin_address_path, 'r') as f:
-                admin_address = 'http://%s' % f.read()
+                admin_address = f'http://{f.read()}'
             # Fetch from the admin endpoint.
             for handler, path in dump_handlers_paths.items():
-                handler_url = '%s/%s' % (admin_address, handler)
-                print('Fetching %s' % handler_url)
+                handler_url = f'{admin_address}/{handler}'
+                print(f'Fetching {handler_url}')
                 with open(path, 'w') as f:
                     f.write(fetch_url(handler_url))
             # Send SIGINT to Envoy process, it should exit and execution will
@@ -167,7 +167,9 @@ def envoy_collect(parse_result, unknown_args):
         # generate.
         modified_envoy_config_path, access_log_paths = modify_envoy_config(
             parse_result.config_path, perf, envoy_tmpdir)
-        dump_handlers_paths = {h: os.path.join(envoy_tmpdir, '%s.txt' % h) for h in DUMP_HANDLERS}
+        dump_handlers_paths = {
+            h: os.path.join(envoy_tmpdir, f'{h}.txt') for h in DUMP_HANDLERS
+        }
         envoy_log_path = os.path.join(envoy_tmpdir, 'envoy.log')
         # The manifest of files that will be placed in the output .tar.
         manifest = access_log_paths + list(
@@ -209,12 +211,12 @@ def envoy_collect(parse_result, unknown_args):
         with tarfile.TarFile(parse_result.output_path, 'w') as output_tar:
             for path in manifest:
                 if os.path.exists(path):
-                    print('Adding %s to archive' % path)
+                    print(f'Adding {path} to archive')
                     output_tar.add(path, arcname=os.path.basename(path))
                 else:
-                    print('%s not found' % path)
+                    print(f'{path} not found')
 
-        print('Wrote Envoy artifacts to %s' % parse_result.output_path)
+        print(f'Wrote Envoy artifacts to {parse_result.output_path}')
     finally:
         shutil.rmtree(envoy_tmpdir)
     return return_code
@@ -222,7 +224,7 @@ def envoy_collect(parse_result, unknown_args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Envoy wrapper to collect stats/log/profile.')
-    default_output_path = 'envoy-%s.tar' % datetime.datetime.now().isoformat('-')
+    default_output_path = f"envoy-{datetime.datetime.now().isoformat('-')}.tar"
     parser.add_argument('--output-path', default=default_output_path, help='path to output .tar.')
     # We either need to interpret or override these, so we declare them in
     # envoy_collect.py and always parse and present them again when invoking
@@ -239,5 +241,6 @@ if __name__ == '__main__':
     parser.add_argument(
         '--envoy-binary',
         default=DEFAULT_ENVOY_PATH,
-        help='Path to Envoy binary (%s by default).' % DEFAULT_ENVOY_PATH)
+        help=f'Path to Envoy binary ({DEFAULT_ENVOY_PATH} by default).',
+    )
     sys.exit(envoy_collect(*parser.parse_known_args(sys.argv)))

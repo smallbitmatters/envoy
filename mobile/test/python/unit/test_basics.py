@@ -35,8 +35,8 @@ def test_send_data_bytes(http_server_url: str):
     assert json.get("body") == "hello world"
     assert json.get("method") == "POST"
     assert json.get("path") == "/"
-    assert json.get("headers", {}).get("content-type") == None
-    assert json.get("headers", {}).get("charset") == None
+    assert json.get("headers", {}).get("content-type") is None
+    assert json.get("headers", {}).get("charset") is None
 
 
 def test_send_data_str(http_server_url: str):
@@ -49,7 +49,7 @@ def test_send_data_str(http_server_url: str):
     assert json.get("body") == "hello world"
     assert json.get("method") == "POST"
     assert json.get("path") == "/"
-    assert json.get("headers", {}).get("content-type") == None
+    assert json.get("headers", {}).get("content-type") is None
     assert json.get("headers", {}).get("charset") == "utf8"
 
 

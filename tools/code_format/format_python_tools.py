@@ -17,9 +17,7 @@ def collect_files():
     # TODO: Add ability to collect a specific file or files.
     matches = []
     path_parts = os.getcwd().split('/')
-    dirname = '.'
-    if path_parts[-1] == 'tools':
-        dirname = '/'.join(path_parts[:-1])
+    dirname = '/'.join(path_parts[:-1]) if path_parts[-1] == 'tools' else '.'
     for root, dirnames, filenames in os.walk(dirname):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDE_LIST]
         for filename in fnmatch.filter(filenames, '*.py'):
@@ -58,12 +56,12 @@ def validate_format(fix=False):
 
 def display_fix_results(successful_files, failed_files):
     if successful_files:
-        print('Successfully fixed {} files'.format(len(successful_files)))
+        print(f'Successfully fixed {len(successful_files)} files')
 
     if failed_files:
         print('The following files failed to fix inline:')
         for failed_file in failed_files:
-            print('  - {}'.format(failed_file))
+            print(f'  - {failed_file}')
 
 
 if __name__ == '__main__':

@@ -25,18 +25,18 @@ def run_in_repo(command: Iterable) -> str:
 def did_test_pass(file):
     tree = ET.parse(file)
     root = tree.getroot()
-    for testsuite in root:
-        if testsuite.attrib['failures'] != '0' or testsuite.attrib['errors'] != '0':
-            return False
-    return True
+    return not any(
+        testsuite.attrib['failures'] != '0'
+        or testsuite.attrib['errors'] != '0'
+        for testsuite in root
+    )
 
 
 # Returns a pretty-printed string of a test case failure.
 def print_test_case_failure(testcase, testsuite, failure_msg, log_path):
-    ret = "Test flake details:\n"
-    ret += "- Test suite:   {}\n".format(testsuite)
-    ret += "- Test case:    {}\n".format(testcase)
-    ret += "- Log path:     {}\n".format(log_path)
+    ret = "Test flake details:\n" + f"- Test suite:   {testsuite}\n"
+    ret += f"- Test case:    {testcase}\n"
+    ret += f"- Log path:     {log_path}\n"
     ret += "- Details:\n"
     for line in failure_msg.splitlines():
         ret += "\t" + line + "\n"
@@ -46,17 +46,15 @@ def print_test_case_failure(testcase, testsuite, failure_msg, log_path):
 
 # Returns a pretty-printed string of a test suite error, such as an exception or a timeout.
 def print_test_suite_error(testsuite, testcase, log_path, duration, time, error_msg, output):
-    ret = "Test flake details:\n"
-    ret += "- Test suite:   {}\n".format(testsuite)
-    ret += "- Test case:    {}\n".format(testcase)
-    ret += "- Log path:     {}\n".format(log_path)
+    ret = "Test flake details:\n" + f"- Test suite:   {testsuite}\n"
+    ret += f"- Test case:    {testcase}\n"
+    ret += f"- Log path:     {log_path}\n"
 
     errno_string = os.strerror(int(error_msg.split(' ')[-1]))
-    ret += "- Error:        {} ({})\n".format(error_msg.capitalize(), errno_string)
+    ret += f"- Error:        {error_msg.capitalize()} ({errno_string})\n"
 
     if duration == time and duration in well_known_timeouts:
-        ret += "- Note:         This error is likely a timeout (test duration == {}, a well known timeout value).\n".format(
-            duration)
+        ret += f"- Note:         This error is likely a timeout (test duration == {duration}, a well known timeout value).\n"
 
     # If there's a call stack, print it. Otherwise, attempt to print the most recent,
     # relevant lines.
@@ -74,7 +72,7 @@ def print_test_suite_error(testsuite, testcase, log_path, duration, time, error_
         output_lines = output[last_testcase_index:].splitlines()
         num_lines_to_print = min(len(output_lines), max_snippet_size)
 
-        ret += "- Last {} line(s):\n".format(num_lines_to_print)
+        ret += f"- Last {num_lines_to_print} line(s):\n"
         for line in output_lines[-num_lines_to_print:]:
             ret += "\t" + line + "\n"
 
@@ -136,11 +134,7 @@ def parse_xml(file, visited):
     # This is dependent on the fact that log files reside in the same directory
     # as their corresponding xml files.
     log_file = file.split('.')
-    log_file_path = ""
-    for token in log_file[:-1]:
-        log_file_path += token
-    log_file_path += ".log"
-
+    log_file_path = "".join(log_file[:-1]) + ".log"
     tree = ET.parse(file)
     root = tree.getroot()
 
@@ -176,7 +170,7 @@ def process_find_output(f, problematic_tests):
         for i in range(len(lineList)):
             if i >= len(lineList) - 2:
                 break
-            filepath += lineList[i] + "/"
+            filepath += f"{lineList[i]}/"
         filepath += "test.xml"
         problematic_tests[filepath] = line.strip('\n')
 
@@ -188,24 +182,25 @@ def get_git_info(CI_TARGET):
     ret = ""
 
     if CI_TARGET != "":
-        ret += "Target:         {}\n".format(CI_TARGET)
+        ret += f"Target:         {CI_TARGET}\n"
 
     if os.getenv('SYSTEM_STAGEDISPLAYNAME') and os.getenv('SYSTEM_STAGEJOBNAME'):
-        ret += "Stage:          {} {}\n".format(
-            os.environ['SYSTEM_STAGEDISPLAYNAME'], os.environ['SYSTEM_STAGEJOBNAME'])
+        ret += f"Stage:          {os.environ['SYSTEM_STAGEDISPLAYNAME']} {os.environ['SYSTEM_STAGEJOBNAME']}\n"
 
     if os.getenv('BUILD_REASON') == "PullRequest" and os.getenv(
             'SYSTEM_PULLREQUEST_PULLREQUESTNUMBER'):
-        ret += "Pull request:   {}/pull/{}\n".format(
-            os.environ['REPO_URI'], os.environ['SYSTEM_PULLREQUEST_PULLREQUESTNUMBER'])
+        ret += f"Pull request:   {os.environ['REPO_URI']}/pull/{os.environ['SYSTEM_PULLREQUEST_PULLREQUESTNUMBER']}\n"
     elif os.getenv('BUILD_REASON'):
-        ret += "Build reason:   {}\n".format(os.environ['BUILD_REASON'])
+        ret += f"Build reason:   {os.environ['BUILD_REASON']}\n"
 
     output = run_in_repo(['git', 'log', '--format=%H', '-n', '1'])
-    ret += "Commmit:        {}/commit/{}".format(os.environ['REPO_URI'], output)
+    ret += f"Commmit:        {os.environ['REPO_URI']}/commit/{output}"
 
     build_id = os.environ['BUILD_URI'].split('/')[-1]
-    ret += "CI results:     https://dev.azure.com/cncf/envoy/_build/results?buildId=" + build_id + "\n"
+    ret += (
+        f"CI results:     https://dev.azure.com/cncf/envoy/_build/results?buildId={build_id}"
+        + "\n"
+    )
 
     ret += "\n"
 
@@ -213,14 +208,14 @@ def get_git_info(CI_TARGET):
 
     if ("origin" in remotes):
         output = run_in_repo(['git', 'remote', 'get-url', 'origin'])
-        ret += "Origin:         {}".format(output.replace('.git', ''))
+        ret += f"Origin:         {output.replace('.git', '')}"
 
     if ("upstream" in remotes):
         output = run_in_repo(['git', 'remote', 'get-url', 'upstream'])
-        ret += "Upstream:       {}".format(output.replace('.git', ''))
+        ret += f"Upstream:       {output.replace('.git', '')}"
 
     output = run_in_repo(['git', 'describe', '--all', '--always'])
-    ret += "Latest ref:     {}".format(output)
+    ret += f"Latest ref:     {output}"
 
     ret += "\n"
 
@@ -235,10 +230,7 @@ def get_git_info(CI_TARGET):
 
 
 def main():
-    CI_TARGET = ""
-    if len(sys.argv) == 2:
-        CI_TARGET = sys.argv[1]
-
+    CI_TARGET = sys.argv[1] if len(sys.argv) == 2 else ""
     if os.getenv('TEST_TMPDIR') and os.getenv('REPO_URI') and os.getenv("BUILD_URI"):
         os.environ["TMP_OUTPUT_PROCESS_XML"] = os.getenv(
             "TEST_TMPDIR") + "/tmp_output_process_xml.txt"
@@ -246,7 +238,11 @@ def main():
         print("Set the env variables TEST_TMPDIR, REPO_URI, and BUILD_URI first.")
         sys.exit(0)
 
-    find_dir = "{}/**/**/**/**/bazel-testlogs/".format(os.environ['TEST_TMPDIR']).replace('\\', '/')
+    find_dir = (
+        f"{os.environ['TEST_TMPDIR']}/**/**/**/**/bazel-testlogs/".replace(
+            '\\', '/'
+        )
+    )
     if CI_TARGET == "MacOS":
         find_dir = '${TEST_TMPDIR}/'
     os.system(
@@ -268,10 +264,10 @@ def main():
     has_flaky_test = False
     failure_output = ""
     flaky_tests_visited = set()
-    for k in problematic_tests.keys():
+    for k, v in problematic_tests.items():
         if did_test_pass(k):
             has_flaky_test = True
-            failure_output += parse_xml(problematic_tests[k], flaky_tests_visited)
+            failure_output += parse_xml(v, flaky_tests_visited)
 
     if has_flaky_test:
         output_msg = "``` \n" + get_git_info(CI_TARGET) + "\n" + failure_output + "``` \n"

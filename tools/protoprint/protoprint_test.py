@@ -34,7 +34,7 @@ def path_and_filename(label):
     splitted_label = label.split('/')
     # transforms a proto label
     # - eg `@envoy_api//foo/bar:baz.proto` -> `foo/bar`, `baz.proto`
-    return '/'.join(splitted_label[:len(splitted_label) - 1])[1:], splitted_label[-1]
+    return '/'.join(splitted_label[:-1])[1:], splitted_label[-1]
 
 
 def golden_proto_file(tmp, path, filename, version):
@@ -134,17 +134,15 @@ def main():
 
         os.chdir(PATH)
 
-        messages = ""
         logging.basicConfig(format='%(message)s')
-        for target in test_data:
-            messages += run(tmp, target, 'active_or_frozen')
-
-        if len(messages) == 0:
+        if messages := "".join(
+            run(tmp, target, 'active_or_frozen') for target in test_data
+        ):
+            logging.error(f"FAILED:\n{messages}")
+            sys.exit(1)
+        else:
             logging.warning("PASS")
             sys.exit(0)
-        else:
-            logging.error("FAILED:\n{}".format(messages))
-            sys.exit(1)
 
 
 if __name__ == "__main__":

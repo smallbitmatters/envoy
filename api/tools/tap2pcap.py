@@ -73,9 +73,16 @@ def tap2pcap(tap_path, pcap_path):
         pass
 
     text2pcap_args = [
-        'text2pcap', '-D', '-t', '%Y-%m-%d %H:%M:%S.', '-6' if ipv6 else '-4',
-        '%s,%s' % (remote_address, local_address), '-T',
-        '%d,%d' % (remote_port, local_port), '-', pcap_path
+        'text2pcap',
+        '-D',
+        '-t',
+        '%Y-%m-%d %H:%M:%S.',
+        '-6' if ipv6 else '-4',
+        f'{remote_address},{local_address}',
+        '-T',
+        '%d,%d' % (remote_port, local_port),
+        '-',
+        pcap_path,
     ]
     text2pcap = sp.Popen(text2pcap_args, stdout=sp.PIPE, stdin=sp.PIPE)
     text2pcap.communicate('\n'.join(dumps).encode())
@@ -83,6 +90,6 @@ def tap2pcap(tap_path, pcap_path):
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print('Usage: %s <tap .pb/.pb_text> <pcap path>' % sys.argv[0])
+        print(f'Usage: {sys.argv[0]} <tap .pb/.pb_text> <pcap path>')
         sys.exit(1)
     tap2pcap(sys.argv[1], sys.argv[2])

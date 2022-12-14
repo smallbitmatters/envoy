@@ -120,15 +120,13 @@ def filter_pkgs(pkgs):
 
 def deps_format(pkgs):
     return '\n'.join(
-        '        "//%s:pkg",' % p.replace('.', '/')
-        for p in sorted(filter_pkgs(pkgs), key=build_order_key))
+        f"""        "//{p.replace('.', '/')}:pkg","""
+        for p in sorted(filter_pkgs(pkgs), key=build_order_key)
+    )
 
 
 def is_v2_package(pkg):
-    for regex in V2_REGEXES:
-        if regex.match(pkg):
-            return True
-    return False
+    return any(regex.match(pkg) for regex in V2_REGEXES)
 
 
 def accidental_v3_package(pkg):
@@ -152,7 +150,7 @@ if __name__ == '__main__':
             # The following prepends contrib to the package path which indirectly will produce the
             # proper bazel path.
             if desc.proto_path.startswith('contrib/'):
-                pkg = "contrib." + pkg
+                pkg = f"contrib.{pkg}"
             v3_packages.add(pkg)
             continue
         if is_v2_package(pkg):

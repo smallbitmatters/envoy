@@ -71,10 +71,7 @@ def nist_cpe_url(cpe):
 # Render version strings human readable.
 def render_version(version):
     # Heuristic, almost certainly a git SHA
-    if len(version) == 40:
-        # Abbreviate git SHA
-        return version[:7]
-    return version
+    return version[:7] if len(version) == 40 else version
 
 
 def render_title(title):
@@ -128,8 +125,7 @@ def main():
         release_date = v['release_date']
         license = v.get('license', '')
         if license:
-            license_url = v.get('license_url', '')
-            if license_url:
+            if license_url := v.get('license_url', ''):
                 license = rst_link(license, license_url)
         dep = Dep(name, project_name.lower(), version, cpe, release_date, license)
         for category in v['use_category']:

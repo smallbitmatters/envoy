@@ -20,7 +20,7 @@ def generate_main_code(type, main_header_file, resolver_cc_file, metrics_header_
     messages = processor.parse_messages(input_files)
 
     complex_type_template = RenderingHelper.get_template('complex_type_template.j2')
-    parsers_template = RenderingHelper.get_template("%s_parser.j2" % type)
+    parsers_template = RenderingHelper.get_template(f"{type}_parser.j2")
 
     main_header_contents = ''
 
@@ -33,7 +33,7 @@ def generate_main_code(type, main_header_file, resolver_cc_file, metrics_header_
         main_header_contents += parsers_template.render(complex_type=message)
 
     # Full file with headers, namespace declaration etc.
-    template = RenderingHelper.get_template("%ss_h.j2" % type)
+    template = RenderingHelper.get_template(f"{type}s_h.j2")
     contents = template.render(contents=main_header_contents)
 
     # Generate main header file.
@@ -41,13 +41,13 @@ def generate_main_code(type, main_header_file, resolver_cc_file, metrics_header_
         fd.write(contents)
 
     # Generate ...resolver.cc file.
-    template = RenderingHelper.get_template("kafka_%s_resolver_cc.j2" % type)
+    template = RenderingHelper.get_template(f"kafka_{type}_resolver_cc.j2")
     contents = template.render(message_types=messages)
     with open(resolver_cc_file, 'w') as fd:
         fd.write(contents)
 
     # Generate ...metrics.h file.
-    template = RenderingHelper.get_template("%s_metrics_h.j2" % type)
+    template = RenderingHelper.get_template(f"{type}_metrics_h.j2")
     contents = template.render(message_types=messages)
     with open(metrics_header_file, 'w') as fd:
         fd.write(contents)
@@ -71,19 +71,19 @@ def generate_test_code(
     messages = processor.parse_messages(input_files)
 
     # Generate header-test file.
-    template = RenderingHelper.get_template("%ss_test_cc.j2" % type)
+    template = RenderingHelper.get_template(f"{type}s_test_cc.j2")
     contents = template.render(message_types=messages)
     with open(header_test_cc_file, 'w') as fd:
         fd.write(contents)
 
     # Generate codec-test file.
-    template = RenderingHelper.get_template("%s_codec_%s_test_cc.j2" % (type, type))
+    template = RenderingHelper.get_template(f"{type}_codec_{type}_test_cc.j2")
     contents = template.render(message_types=messages)
     with open(codec_test_cc_file, 'w') as fd:
         fd.write(contents)
 
     # Generate utilities file.
-    template = RenderingHelper.get_template("%s_utilities_cc.j2" % type)
+    template = RenderingHelper.get_template(f"{type}_utilities_cc.j2")
     contents = template.render(message_types=messages)
     with open(utilities_cc_file, 'w') as fd:
         fd.write(contents)
@@ -131,7 +131,7 @@ class StatefulProcessor:
                     message = self.parse_top_level_element(message_spec)
                     messages.append(message)
             except Exception as e:
-                print('could not process %s' % input_file)
+                print(f'could not process {input_file}')
                 raise
 
         # Sort messages by api_key.
@@ -151,7 +151,7 @@ class StatefulProcessor:
 
         # Figure out the flexible versions.
         flexible_versions_string = spec.get('flexibleVersions', 'none')
-        if 'none' != flexible_versions_string:
+        if flexible_versions_string != 'none':
             flexible_versions = Statics.parse_version_string(flexible_versions_string, versions[-1])
         else:
             flexible_versions = []
@@ -178,10 +178,7 @@ class StatefulProcessor:
                 self.currently_processed_message_type, spec, versions)
             complex_type.register_flexible_versions(flexible_versions)
 
-            # Request / response types need to carry api key version.
-            result = complex_type.with_extra('api_key', spec['apiKey'])
-            return result
-
+            return complex_type.with_extra('api_key', spec['apiKey'])
         finally:
             self.common_structs = {}
             self.currently_processed_message_type = None
@@ -193,31 +190,26 @@ class StatefulProcessor:
     """
         fields_el = field_spec.get('fields')
 
-        if fields_el is not None:
-            fields = []
-            for child_field in field_spec['fields']:
-                child = self.parse_field(child_field, versions[-1])
-                if child is not None:
-                    fields.append(child)
-            # Some structures share the same name, use request/response as prefix.
-            if type_name in ['EntityData', 'EntryData', 'PartitionData', 'PartitionSnapshot',
-                             'SnapshotId', 'TopicData', 'TopicSnapshot']:
-                type_name = self.type.capitalize() + type_name
+        if fields_el is None:
+            return self.common_structs[type_name]
+        fields = []
+        for child_field in field_spec['fields']:
+            child = self.parse_field(child_field, versions[-1])
+            if child is not None:
+                fields.append(child)
+        # Some structures share the same name, use request/response as prefix.
+        if type_name in ['EntityData', 'EntryData', 'PartitionData', 'PartitionSnapshot',
+                         'SnapshotId', 'TopicData', 'TopicSnapshot']:
+            type_name = self.type.capitalize() + type_name
             # Some of the types repeat multiple times (e.g. AlterableConfig).
             # In such a case, every second or later occurrence of the same name is going to be prefixed
             # with parent type, e.g. we have AlterableConfig (for AlterConfigsRequest) and then
             # IncrementalAlterConfigsRequestAlterableConfig (for IncrementalAlterConfigsRequest).
             # This keeps names unique, while keeping non-duplicate ones short.
-            if type_name not in self.known_types:
-                self.known_types.add(type_name)
-            else:
-                type_name = self.currently_processed_message_type + type_name
-                self.known_types.add(type_name)
-
-            return Complex(type_name, fields, versions)
-
-        else:
-            return self.common_structs[type_name]
+        if type_name in self.known_types:
+            type_name = self.currently_processed_message_type + type_name
+        self.known_types.add(type_name)
+        return Complex(type_name, fields, versions)
 
     def parse_field(self, field_spec, highest_possible_version):
         """
@@ -248,10 +240,9 @@ class StatefulProcessor:
         else:
             if (type_name in Primitive.USABLE_PRIMITIVE_TYPE_NAMES):
                 return Primitive(type_name, field_spec.get('default'))
-            else:
-                versions = Statics.parse_version_string(
-                    field_spec['versions'], highest_possible_version)
-                return self.parse_complex_type(type_name, field_spec, versions)
+            versions = Statics.parse_version_string(
+                field_spec['versions'], highest_possible_version)
+            return self.parse_complex_type(type_name, field_spec, versions)
 
 
 class Statics:
@@ -263,13 +254,12 @@ class Statics:
     """
         if raw_versions.endswith('+'):
             return range(int(raw_versions[:-1]), highest_possible_version + 1)
+        if '-' in raw_versions:
+            tokens = raw_versions.split('-', 1)
+            return range(int(tokens[0]), int(tokens[1]) + 1)
         else:
-            if '-' in raw_versions:
-                tokens = raw_versions.split('-', 1)
-                return range(int(tokens[0]), int(tokens[1]) + 1)
-            else:
-                single_version = int(raw_versions)
-                return range(single_version, single_version + 1)
+            single_version = int(raw_versions)
+            return range(single_version, single_version + 1)
 
 
 class FieldList:
@@ -311,20 +301,16 @@ class FieldList:
                     if field.is_nullable_in_version(self.version):
                         # Field is optional<T>, and the parameter is optional<T> in this version.
                         init_list_item = '%s_{%s}' % (field.name, field.name)
-                        init_list.append(init_list_item)
                     else:
                         # Field is optional<T>, and the parameter is T in this version.
                         init_list_item = '%s_{absl::make_optional(%s)}' % (field.name, field.name)
-                        init_list.append(init_list_item)
                 else:
                     # Field is T, so parameter cannot be optional<T>.
                     init_list_item = '%s_{%s}' % (field.name, field.name)
-                    init_list.append(init_list_item)
             else:
                 # Field is not used in this version, so we need to put in default value.
                 init_list_item = '%s_{%s}' % (field.name, field.default_value())
-                init_list.append(init_list_item)
-            pass
+            init_list.append(init_list_item)
         return ', '.join(init_list)
 
     def field_count(self):
@@ -364,37 +350,36 @@ class FieldSpec:
 
     def field_declaration(self):
         if self.is_nullable():
-            return 'absl::optional<%s> %s' % (self.type.name, self.name)
+            return f'absl::optional<{self.type.name}> {self.name}'
         else:
-            return '%s %s' % (self.type.name, self.name)
+            return f'{self.type.name} {self.name}'
 
     def parameter_declaration(self, version):
         if self.is_nullable_in_version(version):
-            return 'absl::optional<%s> %s' % (self.type.name, self.name)
+            return f'absl::optional<{self.type.name}> {self.name}'
         else:
-            return '%s %s' % (self.type.name, self.name)
+            return f'{self.type.name} {self.name}'
 
     def default_value(self):
-        if self.is_nullable():
-            type_default_value = self.type.default_value()
-            # For nullable fields, it's possible to have (Java) null as default value.
-            if type_default_value != 'null':
-                return '{%s}' % type_default_value
-            else:
-                return 'absl::nullopt'
-        else:
+        if not self.is_nullable():
             return str(self.type.default_value())
+        type_default_value = self.type.default_value()
+            # For nullable fields, it's possible to have (Java) null as default value.
+        return (
+            '{%s}' % type_default_value
+            if type_default_value != 'null'
+            else 'absl::nullopt'
+        )
 
     def example_value_for_test(self, version):
         if self.is_nullable_in_version(version):
-            return 'absl::make_optional<%s>(%s)' % (
-                self.type.name, self.type.example_value_for_test(version))
+            return f'absl::make_optional<{self.type.name}>({self.type.example_value_for_test(version)})'
         else:
             return str(self.type.example_value_for_test(version))
 
     def deserializer_name_in_version(self, version, compact):
         if self.is_nullable_in_version(version):
-            return 'Nullable%s' % self.type.deserializer_name_in_version(version, compact)
+            return f'Nullable{self.type.deserializer_name_in_version(version, compact)}'
         else:
             return self.type.deserializer_name_in_version(version, compact)
 
@@ -447,7 +432,7 @@ class Array(TypeSpecification):
 
     @property
     def name(self):
-        return 'std::vector<%s>' % self.underlying.name
+        return f'std::vector<{self.underlying.name}>'
 
     def compute_declaration_chain(self):
         # To use an array of type T, we just need to be capable of using type T.
@@ -456,7 +441,7 @@ class Array(TypeSpecification):
     def deserializer_name_in_version(self, version, compact):
         # For arrays, deserializer name is (Compact)(Nullable)ArrayDeserializer<ElementDeserializer>.
         element_deserializer_name = self.underlying.deserializer_name_in_version(version, compact)
-        return '%sArrayDeserializer<%s>' % ("Compact" if compact else "", element_deserializer_name)
+        return f'{"Compact" if compact else ""}ArrayDeserializer<{element_deserializer_name}>'
 
     def default_value(self):
         return 'std::vector<%s>{}' % (self.underlying.name)
@@ -578,10 +563,7 @@ class Primitive(TypeSpecification):
         """
         if arg is None:
             return None
-        if 'bool' == type:
-            return str(arg).lower()
-        else:
-            return arg
+        return str(arg).lower() if type == 'bool' else arg
 
     def compute_declaration_chain(self):
         # Primitives need no declarations.
@@ -674,14 +656,14 @@ class Complex(TypeSpecification):
             signature = field_list.constructor_signature()
             constructor = signature_to_constructor.get(signature)
             if constructor is None:
-                entry = {}
-                entry['versions'] = [field_list.version]
-                entry['signature'] = signature
-                if (len(signature) > 0):
-                    entry['full_declaration'] = '%s(%s): %s {};' % (
-                        self.name, signature, field_list.constructor_init_list())
-                else:
-                    entry['full_declaration'] = '%s() {};' % self.name
+                entry = {
+                    'versions': [field_list.version],
+                    'signature': signature,
+                    'full_declaration': '%s(%s): %s {};'
+                    % (self.name, signature, field_list.constructor_init_list())
+                    if (len(signature) > 0)
+                    else '%s() {};' % self.name,
+                }
                 signature_to_constructor[signature] = entry
             else:
                 constructor['versions'].append(field_list.version)
@@ -702,8 +684,9 @@ class Complex(TypeSpecification):
         for field in self.fields:
             if field.type.has_flexible_handling():
                 flexible = [x for x in field.version_usage if x in self.flexible_versions]
-                non_flexible = [x for x in field.version_usage if x not in flexible]
-                if non_flexible:
+                if non_flexible := [
+                    x for x in field.version_usage if x not in flexible
+                ]:
                     result.append(
                         FieldSerializationSpec(field, non_flexible, 'computeSize', 'encode'))
                 if flexible:
@@ -732,7 +715,7 @@ class Complex(TypeSpecification):
     def example_value_for_test(self, version):
         field_list = next(fl for fl in self.compute_field_lists() if fl.version == version)
         example_values = map(lambda x: x.example_value_for_test(version), field_list.used_fields())
-        return '%s(%s)' % (self.name, ', '.join(example_values))
+        return f"{self.name}({', '.join(example_values)})"
 
     def is_printable(self):
         return True

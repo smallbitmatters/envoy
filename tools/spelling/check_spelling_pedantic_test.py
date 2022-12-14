@@ -13,14 +13,16 @@ import sys
 curr_dir = os.path.dirname(os.path.realpath(__file__))
 tools = os.path.dirname(curr_dir)
 src = os.path.join(tools, 'testdata', 'spelling')
-check_spelling = sys.executable + " " + os.path.join(curr_dir, 'check_spelling_pedantic.py')
+check_spelling = f"{sys.executable} " + os.path.join(
+    curr_dir, 'check_spelling_pedantic.py'
+)
 
 
 # Runs the 'check_spelling_pedanic' operation, on the specified file,
 # printing the comamnd run and the status code as well as the stdout,
 # and returning all of that to the caller.
 def run_check_format(operation, filename):
-    command = check_spelling + " --test-ignore-exts " + operation + " " + filename
+    command = f"{check_spelling} --test-ignore-exts {operation} {filename}"
     status, stdout, stderr = run_command(command)
     return (command, status, stdout + stderr)
 
@@ -40,11 +42,7 @@ def expect_error(filename, status, stdout, expected_substrings):
         return 1
     errors = 0
     for expected_substring in expected_substrings:
-        found = False
-        for line in stdout:
-            if expected_substring in line:
-                found = True
-                break
+        found = any(expected_substring in line for line in stdout)
         if not found:
             logging.error("%s: Could not find '%s' in:\n" % (filename, expected_substring))
             emit_stdout_as_error(stdout)

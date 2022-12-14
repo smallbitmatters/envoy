@@ -40,9 +40,8 @@ class ValidationError(Exception):
 
 # Extract major version and full API version string from a proto path.
 def proto_api_version(proto_path):
-    match = re.match('v(\d+).*', proto_path.parent.name)
-    if match:
-        return str(proto_path.parent.name)[1:], int(match.group(1))
+    if match := re.match('v(\d+).*', proto_path.parent.name):
+        return str(proto_path.parent.name)[1:], int(match[1])
     return None, 0
 
 
@@ -51,19 +50,20 @@ def validate_proto_path(proto_path):
     version_str, major_version = proto_api_version(proto_path)
 
     # Validate version-less paths.
-    if major_version == 0:
-        if not any(str(proto_path.parent) == p for p in VERSIONLESS_PATHS):
-            raise ValidationError('Package is missing a version')
+    if major_version == 0 and all(
+        str(proto_path.parent) != p for p in VERSIONLESS_PATHS
+    ):
+        raise ValidationError('Package is missing a version')
 
     # Validate that v3+ versions are regular.
     if major_version >= 3:
         if not re.match('\d+(alpha)?$', version_str):
-            raise ValidationError('Invalid v3+ version: %s' % version_str)
+            raise ValidationError(f'Invalid v3+ version: {version_str}')
 
         # Validate v2-only paths.
         for p in V2_ONLY_PATHS:
             if str(proto_path).startswith(p):
-                raise ValidationError('v3+ protos are not allowed in %s' % p)
+                raise ValidationError(f'v3+ protos are not allowed in {p}')
 
 
 # Validate a list of proto paths.
@@ -73,15 +73,16 @@ def validate_proto_paths(proto_paths):
         try:
             validate_proto_path(proto_path)
         except ValidationError as e:
-            error_msgs.append('Invalid .proto location [%s]: %s' % (proto_path, e))
+            error_msgs.append(f'Invalid .proto location [{proto_path}]: {e}')
     return error_msgs
 
 
 if __name__ == '__main__':
     api_root = 'api/envoy'
     api_protos = pathlib.Path(api_root).rglob('*.proto')
-    error_msgs = validate_proto_paths(p.relative_to(api_root) for p in api_protos)
-    if error_msgs:
+    if error_msgs := validate_proto_paths(
+        p.relative_to(api_root) for p in api_protos
+    ):
         for m in error_msgs:
             print(m)
         sys.exit(1)

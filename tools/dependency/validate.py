@@ -5,6 +5,7 @@ This script verifies that bazel query of the build graph is consistent with
 the use_category metadata in bazel/repository_locations.bzl.
 """
 
+
 import asyncio
 import json
 import pathlib
@@ -19,16 +20,15 @@ BAZEL_QUERY_EXTERNAL_DEP_RE = re.compile('@(\w+)//')
 EXTENSION_LABEL_RE = re.compile('(//source/extensions/.*):')
 
 # We can safely ignore these as they are from Bazel or internal repository structure.
-IGNORE_DEPS = set([
+IGNORE_DEPS = {
     'envoy',
-    'envoy_api',
     'envoy_api',
     'platforms',
     'bazel_tools',
     'local_config_cc',
     'remote_coverage_tools',
     'foreign_cc_platform_utils',
-])
+}
 
 
 # Should a dependency be ignored if it's only used in test? Any changes to this
@@ -40,12 +40,7 @@ def test_only_ignore(dep):
     if dep.startswith('raze__'):
         return True
     # Java
-    if dep.startswith('remotejdk'):
-        return True
-    # Python (pip3)
-    if '_pip3' in dep:
-        return True
-    return False
+    return True if dep.startswith('remotejdk') else '_pip3' in dep
 
 
 query = bazel.BazelEnv(envoy_repo.PATH).query
@@ -71,9 +66,11 @@ class DependencyInfo:
         Returns:
           Set of dependency identifiers that match use_category.
         """
-        return set(
-            name for name, metadata in self.repository_locations.items()
-            if use_category in metadata['use_category'])
+        return {
+            name
+            for name, metadata in self.repository_locations.items()
+            if use_category in metadata['use_category']
+        }
 
     def get_metadata(self, dependency):
         """Obtain repository metadata for a dependency.
@@ -207,7 +204,7 @@ class Validator(object):
         bad_test_deps = marginal_test_deps.difference(expected_test_only_deps)
         unknown_bad_test_deps = [dep for dep in bad_test_deps if not test_only_ignore(dep)]
         print(f'Validating {len(expected_test_only_deps)} test-only dependencies...')
-        if len(unknown_bad_test_deps) > 0:
+        if unknown_bad_test_deps:
             raise DependencyError(
                 f'Missing deps in test_only "use_category": {unknown_bad_test_deps}')
 
@@ -281,8 +278,7 @@ class Validator(object):
         expected_deps = []
         print(f'Validating ({len(marginal_deps)}) {name} extension dependencies...')
         for d in marginal_deps:
-            metadata = self._dep_info.get_metadata(d)
-            if metadata:
+            if metadata := self._dep_info.get_metadata(d):
                 use_category = metadata['use_category']
                 valid_use_category = any(
                     c in use_category
@@ -310,7 +306,7 @@ class Validator(object):
         await self.validate_control_plane_deps()
         # Validate the marginal dependencies introduced for each extension.
         for name, target in sorted(build_graph.list_extensions()):
-            target_all = EXTENSION_LABEL_RE.match(target).group(1) + '/...'
+            target_all = f'{EXTENSION_LABEL_RE.match(target).group(1)}/...'
             await self.validate_extension_deps(name, target_all)
 
 

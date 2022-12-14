@@ -112,17 +112,19 @@ tracing_enabled = os.name != 'nt'
 generate_config(
     SCRIPT_DIR,
     'envoy_front_proxy.template.yaml',
-    '{}/envoy_front_proxy.yaml'.format(OUT_DIR),
+    f'{OUT_DIR}/envoy_front_proxy.yaml',
     clusters=front_envoy_clusters,
-    tracing=tracing_enabled)
+    tracing=tracing_enabled,
+)
 
 # Generate a demo config for the double proxy. This sets up both an HTTP and HTTPS listeners,
 # and backhauls the traffic to the main front proxy.
 generate_config(
     SCRIPT_DIR,
     'envoy_double_proxy.template.yaml',
-    '{}/envoy_double_proxy.yaml'.format(OUT_DIR),
-    tracing=tracing_enabled)
+    f'{OUT_DIR}/envoy_double_proxy.yaml',
+    tracing=tracing_enabled,
+)
 
 # Generate a demo config for the service to service (local) proxy. This sets up several different
 # listeners:
@@ -135,10 +137,11 @@ generate_config(
 generate_config(
     SCRIPT_DIR,
     'envoy_service_to_service.template.yaml',
-    '{}/envoy_service_to_service.yaml'.format(OUT_DIR),
+    f'{OUT_DIR}/envoy_service_to_service.yaml',
     internal_virtual_hosts=service_to_service_envoy_clusters,
     external_virtual_hosts=external_virtual_hosts,
-    mongos_servers=mongos_servers)
+    mongos_servers=mongos_servers,
+)
 
 shutil.copy(os.path.join(SCRIPT_DIR, 'envoyproxy_io_proxy.yaml'), OUT_DIR)
 shutil.copy(os.path.join(SCRIPT_DIR, 'encapsulate_in_http1_connect.yaml'), OUT_DIR)

@@ -56,12 +56,12 @@ def github_url(text, type_context):
 
 @lru_cache
 def format_internal_link(text, ref):
-    return ':ref:`%s <%s>`' % (text, ref)
+    return f':ref:`{text} <{ref}>`'
 
 
 @lru_cache
 def format_external_link(text, ref):
-    return '`%s <%s>`_' % (text, ref)
+    return f'`{text} <{ref}>`_'
 
 
 def rst_anchor(label):
@@ -115,22 +115,22 @@ def type_name_from_fqn(fqn):
 
 def file_cross_ref_label(msg_name):
     """File cross reference label."""
-    return 'envoy_v3_api_file_%s' % msg_name
+    return f'envoy_v3_api_file_{msg_name}'
 
 
 def message_cross_ref_label(msg_name):
     """Message cross reference label."""
-    return 'envoy_v3_api_msg_%s' % msg_name
+    return f'envoy_v3_api_msg_{msg_name}'
 
 
 def enum_cross_ref_label(enum_name):
     """Enum cross reference label."""
-    return 'envoy_v3_api_enum_%s' % enum_name
+    return f'envoy_v3_api_enum_{enum_name}'
 
 
 def field_cross_ref_label(field_name):
     """Field cross reference label."""
-    return 'envoy_v3_api_field_%s' % field_name
+    return f'envoy_v3_api_field_{field_name}'
 
 
 class RstFormatVisitor(visitor.Visitor):
@@ -153,8 +153,11 @@ class RstFormatVisitor(visitor.Visitor):
 
     @cached_property
     def envoy_prefixes(self) -> Set[str]:
-        return set(
-            [constants.ENVOY_PREFIX, constants.ENVOY_API_NAMESPACE_PREFIX, constants.CNCF_PREFIX])
+        return {
+            constants.ENVOY_PREFIX,
+            constants.ENVOY_API_NAMESPACE_PREFIX,
+            constants.CNCF_PREFIX,
+        }
 
     @property
     def extension_category_data(self):
@@ -240,8 +243,8 @@ class RstFormatVisitor(visitor.Visitor):
         has_messages = bool(body.strip())
         if self._missing_title(has_messages, file_proto, ctx):
             raise ProtodocError(
-                'Envoy API proto file missing [#protodoc-title:] annotation: {}'.format(
-                    file_proto.name))
+                f'Envoy API proto file missing [#protodoc-title:] annotation: {file_proto.name}'
+            )
         # Find the earliest detached comment, attribute it to file level.
         # Also extract file level titles if any.
         return self.tpl_content.render(
@@ -350,12 +353,13 @@ class RstFormatVisitor(visitor.Visitor):
         """
         extensions = self.extension_category_data.get(extension_category, [])
         contrib_extensions = self.contrib_extension_category_data.get(extension_category, [])
-        if not extensions and not contrib_extensions:
+        if extensions or contrib_extensions:
+            return self.tpl_extension_category.render(
+                category=extension_category,
+                extensions=sorted(extensions),
+                contrib_extensions=sorted(contrib_extensions))
+        else:
             raise ProtodocError(f"\n\nUnable to find extension category:  {extension_category}\n\n")
-        return self.tpl_extension_category.render(
-            category=extension_category,
-            extensions=sorted(extensions),
-            contrib_extensions=sorted(contrib_extensions))
 
     def _field_is_required(self, field) -> bool:
         if not field.options.HasExtension(validate_pb2.rules):
@@ -397,7 +401,7 @@ class RstFormatVisitor(visitor.Visitor):
             return format_external_link(
                 constants.FIELD_TYPE_NAMES[field_type],
                 'https://developers.google.com/protocol-buffers/docs/proto#scalar')
-        raise ProtodocError('Unknown field type ' + str(field_type))
+        raise ProtodocError(f'Unknown field type {str(field_type)}')
 
     def _field_type_envoy(self, typenames, field_type, type_name):
         normal_type_name = normalize_field_type_name(type_name)
@@ -415,8 +419,9 @@ class RstFormatVisitor(visitor.Visitor):
     def _field_type_rpc(self, type_name) -> str:
         rpc = type_name[len(constants.RPC_NAMESPACE_PREFIX):]
         return format_external_link(
-            rpc, 'https://cloud.google.com/natural-language/docs/reference/rpc/google.rpc#%s'
-            % rpc.lower())
+            rpc,
+            f'https://cloud.google.com/natural-language/docs/reference/rpc/google.rpc#{rpc.lower()}',
+        )
 
     @lru_cache
     def _field_type_wkt(self, type_name) -> str:
@@ -463,9 +468,7 @@ class RstFormatVisitor(visitor.Visitor):
             return '{...}'
         if field.label == field.LABEL_REPEATED:
             return '[]'
-        if field.type == field.TYPE_MESSAGE:
-            return '{...}'
-        return '...'
+        return '{...}' if field.type == field.TYPE_MESSAGE else '...'
 
     def _json_values(self, msg_proto, ctx) -> Iterator[Tuple[str, str]]:
         for i, field in enumerate(msg_proto.field):
@@ -497,8 +500,10 @@ class RstFormatVisitor(visitor.Visitor):
             oneof_comment = oneof_context.leading_comment
             formatted_oneof_comment = self._comment(oneof_comment)
             formatted_leading_comment = (
-                formatted_leading_comment.strip()
-                if not formatted_leading_comment.strip() else formatted_leading_comment)
+                formatted_leading_comment
+                if formatted_leading_comment.strip()
+                else formatted_leading_comment.strip()
+            )
 
             # If the oneof only has one field and marked required, mark the field as required.
             if len(ctx.oneof_fields[field.oneof_index]) == 1 and ctx.oneof_required[
@@ -547,8 +552,9 @@ class RstFormatVisitor(visitor.Visitor):
                     validate_pb2.required]
             type_context.oneof_names[index] = oneof_decl.name
         for index, field in enumerate(msg.field):
-            item = self._message(type_context, type_context.extend_field(index, field.name), field)
-            if item:
+            if item := self._message(
+                type_context, type_context.extend_field(index, field.name), field
+            ):
                 yield item
 
     def _missing_title(self, has_messages, file_proto, ctx):
@@ -557,12 +563,14 @@ class RstFormatVisitor(visitor.Visitor):
         # in the common case.
         return (
             has_messages
-            and not annotations.DOC_TITLE_ANNOTATION in ctx.source_code_info.file_level_annotations
-            and file_proto.name.startswith('envoy'))
+            and annotations.DOC_TITLE_ANNOTATION
+            not in ctx.source_code_info.file_level_annotations
+            and file_proto.name.startswith('envoy')
+        )
 
     def _security_option(self, name, untrusted_upstream, untrusted_downstream):
         if not (config := self.protodoc_manifest.get(name)):
-            raise ProtodocError('Missing protodoc manifest YAML for %s' % name)
+            raise ProtodocError(f'Missing protodoc manifest YAML for {name}')
         return self.tpl_security.render(
             untrusted_downstream=untrusted_downstream,
             untrusted_upstream=untrusted_upstream,

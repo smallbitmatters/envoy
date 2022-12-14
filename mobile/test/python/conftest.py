@@ -28,9 +28,7 @@ def http_server_url():
     def _run_http_server():
         server = HTTPServer((ip, port), EchoServerHandler)
         server.timeout = 0.25
-        while True:
-            if kill_server.is_set():
-                break
+        while True and not kill_server.is_set():
             try:
                 if not start_server.is_set():
                     start_server.set()

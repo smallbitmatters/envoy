@@ -66,25 +66,26 @@ def sync(api_root, formatted, mode, is_ci):
         if diff.strip():
             if mode == "check":
                 print(
-                    "Please apply following patch to directory '{}'".format(api_root),
-                    file=sys.stderr)
+                    f"Please apply following patch to directory '{api_root}'",
+                    file=sys.stderr,
+                )
                 print(diff.decode(), file=sys.stderr)
                 sys.exit(1)
             if mode == "fix":
-                _git_status = git_status(api_root_path)
-                if _git_status:
+                if _git_status := git_status(api_root_path):
                     print('git status indicates a dirty API tree:\n%s' % _git_status)
                     print(
                         'Proto formatting may overwrite or delete files in the above list with no git backup.'
                     )
                     if not is_ci and input('Continue? [yN] ').strip().lower() != 'y':
                         sys.exit(1)
-                src_files = set(
-                    str(p.relative_to(current_api_dir)) for p in current_api_dir.rglob('*'))
-                dst_files = set(str(p.relative_to(dst_dir)) for p in dst_dir.rglob('*'))
-                deleted_files = src_files.difference(dst_files)
-                if deleted_files:
-                    print('The following files will be deleted: %s' % sorted(deleted_files))
+                src_files = {
+                    str(p.relative_to(current_api_dir))
+                    for p in current_api_dir.rglob('*')
+                }
+                dst_files = {str(p.relative_to(dst_dir)) for p in dst_dir.rglob('*')}
+                if deleted_files := src_files.difference(dst_files):
+                    print(f'The following files will be deleted: {sorted(deleted_files)}')
                     print(
                         'If this is not intended, please see https://github.com/envoyproxy/envoy/blob/main/api/STYLE.md#adding-an-extension-configuration-to-the-api.'
                     )

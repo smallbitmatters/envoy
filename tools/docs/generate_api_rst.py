@@ -10,16 +10,13 @@ def include_package(envoy_api_protos, rst_file_path, prefix):
     #
     # we are only interested in the proto files generated for envoy protos,
     # not for non-envoy dependencies
-    if ("pkg/" + prefix) not in rst_file_path:
+    if f"pkg/{prefix}" not in rst_file_path:
         return None
     # derive the "canonical" path from the filepath
-    canonical = f"{rst_file_path.split('pkg/' + prefix)[1]}"
+    canonical = f"{rst_file_path.split(f'pkg/{prefix}')[1]}"
 
     # we are only interested in the actual v3 protos, not their dependencies
-    if (prefix + canonical) not in envoy_api_protos:
-        return None
-
-    return canonical
+    return None if (prefix + canonical) not in envoy_api_protos else canonical
 
 
 def main():

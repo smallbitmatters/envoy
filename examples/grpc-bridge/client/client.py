@@ -28,7 +28,7 @@ class KVClient:
         data = r.SerializeToString()
         data = pack('!cI', b'\0', len(data)) + data
 
-        resp = requests.post(HOST + "/kv.KV/Get", data=data, headers=HEADERS)
+        resp = requests.post(f"{HOST}/kv.KV/Get", data=data, headers=HEADERS)
 
         return kv.GetResponse().FromString(resp.content[5:])
 
@@ -37,7 +37,7 @@ class KVClient:
         data = r.SerializeToString()
         data = pack('!cI', b'\0', len(data)) + data
 
-        return requests.post(HOST + "/kv.KV/Set", data=data, headers=HEADERS)
+        return requests.post(f"{HOST}/kv.KV/Set", data=data, headers=HEADERS)
 
 
 def main():
@@ -78,7 +78,7 @@ def main():
         # send the request to the server
         response = client.set(key, value)
 
-        print("setf %s to %s" % (key, value))
+        print(f"setf {key} to {value}")
 
 
 if __name__ == '__main__':

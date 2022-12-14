@@ -13,9 +13,9 @@ from envoy.base import utils
 
 def format_item(extension, metadata):
     if metadata.get('undocumented'):
-        item = '* %s' % extension
+        item = f'* {extension}'
     else:
-        item = '* :ref:`%s <extension_%s>`' % (extension, extension)
+        item = f'* :ref:`{extension} <extension_{extension}>`'
     if metadata.get('status') == 'alpha':
         item += ' (alpha)'
     if metadata.get('contrib', False):
@@ -43,7 +43,7 @@ def main():
         security_postures[metadata['security_posture']].append(extension)
 
     for sp, extensions in security_postures.items():
-        output_path = pathlib.Path(security_rst_root, 'secpos_%s.rst' % sp)
+        output_path = pathlib.Path(security_rst_root, f'secpos_{sp}.rst')
         content = f"Extension security: ``{sp}``"
         content += f"\n{'=' * len(content)}\n\n"
         content += '\n'.join(

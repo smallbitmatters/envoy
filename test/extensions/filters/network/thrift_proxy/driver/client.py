@@ -58,7 +58,7 @@ class TRecordingTransport(TTransport.TTransportBase):
 def main(cfg, reqhandle, resphandle):
     if cfg.unix:
         if cfg.addr == "":
-            sys.exit("invalid unix domain socket: {}".format(cfg.addr))
+            sys.exit(f"invalid unix domain socket: {cfg.addr}")
         socket = TSocket.TSocket(unix_socket=cfg.addr)
     else:
         try:
@@ -67,7 +67,7 @@ def main(cfg, reqhandle, resphandle):
                 host = "localhost"
             socket = TSocket.TSocket(host=host, port=int(port))
         except ValueError:
-            sys.exit("invalid address: {}".format(cfg.addr))
+            sys.exit(f"invalid address: {cfg.addr}")
 
     transport = TRecordingTransport(socket, reqhandle, resphandle)
 
@@ -132,22 +132,19 @@ def main(cfg, reqhandle, resphandle):
                 return_fields=cfg.params,
                 the_works=TheWorks(
                     field_1=True,
-                    field_2=0x7f,
-                    field_3=0x7fff,
-                    field_4=0x7fffffff,
-                    field_5=0x7fffffffffffffff,
+                    field_2=0x7F,
+                    field_3=0x7FFF,
+                    field_4=0x7FFFFFFF,
+                    field_5=0x7FFFFFFFFFFFFFFF,
                     field_6=-1.5,
                     field_7=u"string is UTF-8: \U0001f60e",
                     field_8=b"binary is bytes: \x80\x7f\x00\x01",
-                    field_9={
-                        1: "one",
-                        2: "two",
-                        3: "three"
-                    },
+                    field_9={1: "one", 2: "two", 3: "three"},
                     field_10=[1, 2, 4, 8],
-                    field_11=set(["a", "b", "c"]),
+                    field_11={"a", "b", "c"},
                     field_12=False,
-                ))
+                ),
+            )
 
             try:
                 result = client.execute(param)
@@ -161,10 +158,10 @@ def main(cfg, reqhandle, resphandle):
 
     if cfg.request is None:
         req = "".join(["%02X " % ord(x) for x in reqhandle.getvalue()]).strip()
-        print("request: {}".format(req))
+        print(f"request: {req}")
     if cfg.response is None:
         resp = "".join(["%02X " % ord(x) for x in resphandle.getvalue()]).strip()
-        print("response: {}".format(resp))
+        print(f"response: {resp}")
 
     transport.close()
 

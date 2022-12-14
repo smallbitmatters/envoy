@@ -46,11 +46,11 @@ class KafkaBrokerIntegrationTest(unittest.TestCase):
 
     @classmethod
     def kafka_address(cls):
-        return '127.0.0.1:%s' % KafkaBrokerIntegrationTest.services.kafka_envoy_port
+        return f'127.0.0.1:{KafkaBrokerIntegrationTest.services.kafka_envoy_port}'
 
     @classmethod
     def envoy_stats_address(cls):
-        return 'http://127.0.0.1:%s/stats' % KafkaBrokerIntegrationTest.services.envoy_monitoring_port
+        return f'http://127.0.0.1:{KafkaBrokerIntegrationTest.services.envoy_monitoring_port}/stats'
 
     def test_kafka_consumer_with_no_messages_received(self):
         """
@@ -119,7 +119,8 @@ class KafkaBrokerIntegrationTest(unittest.TestCase):
             consumer = KafkaConsumer(
                 bootstrap_servers=KafkaBrokerIntegrationTest.kafka_address(),
                 group_id='test',
-                client_id='test-%s' % id)
+                client_id=f'test-{id}',
+            )
             consumer.subscribe(['test_consumer_with_consumer_groups'])
             consumers.append(consumer)
 
@@ -150,7 +151,7 @@ class KafkaBrokerIntegrationTest(unittest.TestCase):
     """
 
         poll_operations = 10
-        for i in range(poll_operations):
+        for _ in range(poll_operations):
             consumer.poll(timeout_ms=1000)
 
     def test_admin_client(self):
@@ -213,8 +214,8 @@ class MetricsHolder:
         self.final_requests, self.final_responses = MetricsHolder.get_envoy_stats()
 
     def assert_metric_increase(self, message_type, count):
-        request_type = message_type + '_request'
-        response_type = message_type + '_response'
+        request_type = f'{message_type}_request'
+        response_type = f'{message_type}_response'
 
         initial_request_value = self.initial_requests.get(request_type, 0)
         final_request_value = self.final_requests.get(request_type, 0)
@@ -236,13 +237,12 @@ class MetricsHolder:
         with urllib.request.urlopen(stats_url) as remote_metrics_url:
             payload = remote_metrics_url.read().decode()
             lines = payload.splitlines()
+            request_prefix = 'kafka.testfilter.request.'
+            response_prefix = 'kafka.testfilter.response.'
             for line in lines:
-                request_prefix = 'kafka.testfilter.request.'
-                response_prefix = 'kafka.testfilter.response.'
                 if line.startswith(request_prefix):
                     data = line[len(request_prefix):].split(': ')
                     requests[data[0]] = int(data[1])
-                    pass
                 if line.startswith(response_prefix) and '_response:' in line:
                     data = line[len(response_prefix):].split(': ')
                     responses[data[0]] = int(data[1])
@@ -274,7 +274,7 @@ class ServicesHolder:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.bind(('0.0.0.0', 0))
             socket_port = server_socket.getsockname()[1]
-            print('returning %s' % socket_port)
+            print(f'returning {socket_port}')
             return socket_port
 
     def start(self):
@@ -300,16 +300,16 @@ class ServicesHolder:
 
         # Setup a temporary directory, which will be used by Kafka & Zookeeper servers.
         self.kafka_tmp_dir = tempfile.mkdtemp()
-        print('Temporary directory used for tests: ' + self.kafka_tmp_dir)
+        print(f'Temporary directory used for tests: {self.kafka_tmp_dir}')
 
         # This directory will store the configuration files fed to services.
-        config_dir = self.kafka_tmp_dir + '/config'
+        config_dir = f'{self.kafka_tmp_dir}/config'
         os.mkdir(config_dir)
         # This directory will store Zookeeper's data (== Kafka server metadata).
-        zookeeper_store_dir = self.kafka_tmp_dir + '/zookeeper_data'
+        zookeeper_store_dir = f'{self.kafka_tmp_dir}/zookeeper_data'
         os.mkdir(zookeeper_store_dir)
         # This directory will store Kafka's data (== partitions).
-        kafka_store_dir = self.kafka_tmp_dir + '/kafka_data'
+        kafka_store_dir = f'{self.kafka_tmp_dir}/kafka_data'
         os.mkdir(kafka_store_dir)
 
         # Find the Kafka server 'bin' directory.
@@ -343,7 +343,7 @@ class ServicesHolder:
             envoy_config_file = os.path.join(config_dir, 'envoy_config.yaml')
             with open(envoy_config_file, 'w') as fd:
                 fd.write(contents)
-                print('Envoy config file rendered at: ' + envoy_config_file)
+                print(f'Envoy config file rendered at: {envoy_config_file}')
 
             # Render config file for Zookeeper.
             template = RenderingHelper.get_template('zookeeper_properties.j2')
@@ -351,7 +351,7 @@ class ServicesHolder:
             zookeeper_config_file = os.path.join(config_dir, 'zookeeper.properties')
             with open(zookeeper_config_file, 'w') as fd:
                 fd.write(contents)
-                print('Zookeeper config file rendered at: ' + zookeeper_config_file)
+                print(f'Zookeeper config file rendered at: {zookeeper_config_file}')
 
             # Render config file for Kafka.
             template = RenderingHelper.get_template('kafka_server_properties.j2')
@@ -365,7 +365,7 @@ class ServicesHolder:
             kafka_config_file = os.path.join(config_dir, 'kafka_server.properties')
             with open(kafka_config_file, 'w') as fd:
                 fd.write(contents)
-                print('Kafka config file rendered at: ' + kafka_config_file)
+                print(f'Kafka config file rendered at: {kafka_config_file}')
 
             # Start the services now.
             try:
@@ -434,9 +434,9 @@ class ServicesHolder:
         for directory in os.listdir(external_dir):
             if 'remotejdk11' in directory:
                 result = os.path.join(external_dir, directory, 'bin')
-                print('Using Java: ' + result)
+                print(f'Using Java: {result}')
                 return result
-        raise Exception('Could not find Java in: ' + external_dir)
+        raise Exception(f'Could not find Java in: {external_dir}')
 
     @staticmethod
     def find_envoy():
@@ -468,7 +468,7 @@ class ServicesHolder:
             self.envoy_worker.kill()
 
         if self.kafka_tmp_dir:
-            print('Removing temporary directory: ' + self.kafka_tmp_dir)
+            print(f'Removing temporary directory: {self.kafka_tmp_dir}')
             shutil.rmtree(self.kafka_tmp_dir)
 
     def check_state(self):
@@ -521,30 +521,27 @@ class ProcessWorker:
     """
 
         while True:
-            status = owner.process_handle.poll()
-            if status:
+            if status := owner.process_handle.poll():
                 # Service died.
-                print('%s did not initialize properly - finished with: %s' % (owner.name, status))
+                print(f'{owner.name} did not initialize properly - finished with: {status}')
                 owner.initialization_ok = False
                 owner.initialization_semaphore.release()
                 break
             else:
-                # Service is still running.
-                startup_message_ts = owner.startup_message_ts
-                if startup_message_ts:
+                if startup_message_ts := owner.startup_message_ts:
                     # The log message has been registered (by pipe_handler thread), let's just ensure that
                     # some time has passed and mark the service as running.
                     current_time = int(round(time.time()))
                     if current_time - startup_message_ts >= ProcessWorker.INITIALIZATION_WAIT_SECONDS:
                         print(
-                            'Startup message seen %s seconds ago, and service is still running' %
-                            (ProcessWorker.INITIALIZATION_WAIT_SECONDS),
-                            flush=True)
+                            f'Startup message seen {ProcessWorker.INITIALIZATION_WAIT_SECONDS} seconds ago, and service is still running',
+                            flush=True,
+                        )
                         owner.initialization_ok = True
                         owner.initialization_semaphore.release()
                         break
             time.sleep(1)
-        print('Initialization worker for %s has finished' % (owner.name))
+        print(f'Initialization worker for {owner.name} has finished')
 
     @staticmethod
     def pipe_handler(owner, pipe, pipe_name):
@@ -557,15 +554,15 @@ class ProcessWorker:
         try:
             for raw_line in pipe:
                 line = raw_line.decode().rstrip()
-                print('%s(%s):' % (owner.name, pipe_name), line, flush=True)
+                print(f'{owner.name}({pipe_name}):', line, flush=True)
                 if owner.startup_message in line:
                     print(
-                        '%s initialization message [%s] has been logged' %
-                        (owner.name, owner.startup_message))
+                        f'{owner.name} initialization message [{owner.startup_message}] has been logged'
+                    )
                     owner.startup_message_ts = int(round(time.time()))
         finally:
             pipe.close()
-        print('Pipe handler for %s(%s) has finished' % (owner.name, pipe_name))
+        print(f'Pipe handler for {owner.name}({pipe_name}) has finished')
 
     def await_startup(self):
         """
@@ -573,13 +570,13 @@ class ProcessWorker:
     If everything is okay, we just continue (we can use the service), otherwise throw.
     """
 
-        print('Waiting for %s to start...' % (self.name))
+        print(f'Waiting for {self.name} to start...')
         self.initialization_semaphore.acquire()
         try:
             if self.initialization_ok:
-                print('Service %s started successfully' % (self.name))
+                print(f'Service {self.name} started successfully')
             else:
-                raise Exception('%s could not start' % (self.name))
+                raise Exception(f'{self.name} could not start')
         finally:
             self.initialization_semaphore.release()
 
@@ -588,16 +585,15 @@ class ProcessWorker:
     Verifies if the service is still running. Throws if it is not.
     """
 
-        status = self.process_handle.poll()
-        if status:
-            raise Exception('%s died with: %s' % (self.name, str(status)))
+        if status := self.process_handle.poll():
+            raise Exception(f'{self.name} died with: {str(status)}')
 
     def kill(self):
         """
     Utility method to kill the main service thread and all related workers.
     """
 
-        print('Stopping service %s' % self.name)
+        print(f'Stopping service {self.name}')
 
         # Kill the real process.
         self.process_handle.kill()
@@ -609,7 +605,7 @@ class ProcessWorker:
         self.out_worker.join()
         self.err_worker.join()
 
-        print('Service %s has been stopped' % self.name)
+        print(f'Service {self.name} has been stopped')
 
 
 class RenderingHelper:

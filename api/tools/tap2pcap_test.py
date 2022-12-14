@@ -1,4 +1,5 @@
 """Tests for tap2pcap."""
+
 from __future__ import print_function
 
 import os
@@ -23,6 +24,6 @@ if __name__ == '__main__':
         expected_output = f.read()
     if actual_output != expected_output:
         print('Mismatch')
-        print('Expected: %s' % expected_output)
-        print('Actual: %s' % actual_output)
+        print(f'Expected: {expected_output}')
+        print(f'Actual: {actual_output}')
         sys.exit(1)

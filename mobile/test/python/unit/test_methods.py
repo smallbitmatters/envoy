@@ -62,5 +62,5 @@ async def test_method_func_asyncio(http_server_url: str, method: str):
 
 
 def assert_valid_response(response: Response):
-    assert response.envoy_error == None, response.envoy_error.message  # type: ignore
+    assert response.envoy_error is None, response.envoy_error.message
     assert response.status_code == 200

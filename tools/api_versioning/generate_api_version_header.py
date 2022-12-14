@@ -32,15 +32,16 @@ def generate_header_file(input_path):
     version = utils.get_api_version(input_path)
     oldest_version = utils.compute_oldest_api_version(version)
 
-    header_file_contents = FILE_TEMPLATE.substitute({
-        'major': version.major,
-        'minor': version.minor,
-        'patch': version.patch,
-        'oldest_major': oldest_version.major,
-        'oldest_minor': oldest_version.minor,
-        'oldest_patch': oldest_version.patch
-    })
-    return header_file_contents
+    return FILE_TEMPLATE.substitute(
+        {
+            'major': version.major,
+            'minor': version.minor,
+            'patch': version.patch,
+            'oldest_major': oldest_version.major,
+            'oldest_minor': oldest_version.minor,
+            'oldest_patch': oldest_version.patch,
+        }
+    )
 
 
 if __name__ == '__main__':

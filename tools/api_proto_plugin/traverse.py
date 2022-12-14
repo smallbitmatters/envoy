@@ -45,7 +45,10 @@ def traverse_message(type_context, msg_proto, visitor):
     # We need to do some extra work to recover the map type annotation from the
     # synthesized messages.
     type_context.map_typenames = {
-        '%s.%s' % (type_context.name, nested_msg.name): (nested_msg.field[0], nested_msg.field[1])
+        f'{type_context.name}.{nested_msg.name}': (
+            nested_msg.field[0],
+            nested_msg.field[1],
+        )
         for nested_msg in msg_proto.nested_type
         if nested_msg.options.map_entry
     }

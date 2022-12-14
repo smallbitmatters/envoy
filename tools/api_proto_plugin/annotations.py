@@ -1,5 +1,6 @@
 """Envoy API annotations."""
 
+
 import re
 from functools import partial
 
@@ -35,7 +36,7 @@ COMMENT_ANNOTATION = 'comment'
 # fully-qualified-name (FQN) type.
 ALLOW_FULLY_QUALIFIED_NAME_ANNOTATION = 'allow-fully-qualified-name'
 
-VALID_ANNOTATIONS = set([
+VALID_ANNOTATIONS = {
     DOC_TITLE_ANNOTATION,
     EXTENSION_ANNOTATION,
     EXTENSION_CATEGORY_ANNOTATION,
@@ -44,7 +45,7 @@ VALID_ANNOTATIONS = set([
     NEXT_MAJOR_VERSION_ANNOTATION,
     COMMENT_ANNOTATION,
     ALLOW_FULLY_QUALIFIED_NAME_ANNOTATION,
-])
+}
 
 # These can propagate from file scope to message/enum scope (and be overridden).
 INHERITED_ANNOTATIONS = set([
@@ -78,7 +79,7 @@ def extract_annotations(s, inherited_annotations=None):
     for group in groups:
         annotation = group[0]
         if annotation not in VALID_ANNOTATIONS:
-            raise AnnotationError('Unknown annotation: %s' % annotation)
+            raise AnnotationError(f'Unknown annotation: {annotation}')
         annotations[group[0]] = group[1].lstrip()
     return annotations
 
@@ -90,12 +91,10 @@ def append(s, annotation, content):
 def xform_sub(annotation_xforms, present_annotations, match):
     annotation, content, trailing = match.groups()
     present_annotations.add(annotation)
-    annotation_xform = annotation_xforms.get(annotation)
-    if annotation_xform:
-        value = annotation_xform(annotation)
-        return '[#%s: %s]%s' % (annotation, value, trailing) if value is not None else ''
-    else:
+    if not (annotation_xform := annotation_xforms.get(annotation)):
         return match.group(0)
+    value = annotation_xform(annotation)
+    return f'[#{annotation}: {value}]{trailing}' if value is not None else ''
 
 
 def xform_annotation(s, annotation_xforms):

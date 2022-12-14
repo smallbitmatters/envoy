@@ -73,7 +73,10 @@ extensions = [
 ]
 extlinks = {
     'issue': ('https://github.com/envoyproxy/envoy-mobile/issues/%s', ''),
-    'repo': ('https://github.com/envoyproxy/envoy-mobile/blob/{}/%s'.format(blob_sha), ''),
+    'repo': (
+        f'https://github.com/envoyproxy/envoy-mobile/blob/{blob_sha}/%s',
+        '',
+    ),
     'tree': ('https://github.com/envoyproxy/envoy-mobile/tree/%s', ''),
 }
 
@@ -97,7 +100,7 @@ master_doc = 'index'
 # General information about the project.
 project = u'envoy-mobile'
 author = u'Lyft, Inc.'
-copyright = u'{} {}'.format(datetime.now().year, author)
+copyright = f'{datetime.now().year} {author}'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the

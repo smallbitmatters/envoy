@@ -69,7 +69,8 @@ if __name__ == "__main__":
 
     # Fetch the current version commit information from GitHub.
     commit_info_request = urllib.request.Request(
-        "https://api.github.com/repos/envoyproxy/envoy/commits/v" + current_version)
+        f"https://api.github.com/repos/envoyproxy/envoy/commits/v{current_version}"
+    )
     if github_token := os.environ.get(args.github_api_token_env_name):
         # Reference: https://github.com/octokit/auth-token.js/blob/902a172693d08de998250bf4d8acb1fdb22377a4/src/with-authorization-prefix.ts#L6-L12.
         authorization_header_prefix = "bearer" if len(github_token.split(".")) == 3 else "token"
@@ -84,10 +85,12 @@ if __name__ == "__main__":
             source_version_file.write_text(commit_info["sha"])
     except urllib.error.HTTPError as e:
         status_code = e.code
-        if e.code in (http.HTTPStatus.UNAUTHORIZED, http.HTTPStatus.FORBIDDEN):
-            print(
-                f"Please check the GitHub token provided in {args.github_api_token_env_name} environment variable. {e.reason}."
-            )
-            sys.exit(1)
-        else:
+        if e.code not in (
+            http.HTTPStatus.UNAUTHORIZED,
+            http.HTTPStatus.FORBIDDEN,
+        ):
             raise Exception(f"Failed since {e.reason} ({status_code}).")
+        print(
+            f"Please check the GitHub token provided in {args.github_api_token_env_name} environment variable. {e.reason}."
+        )
+        sys.exit(1)

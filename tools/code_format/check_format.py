@@ -99,16 +99,12 @@ class FormatConfig:
             self,
             config_type: str,
             cb: Callable = tuple) -> Dict[str, Union[Tuple[str, ...], Dict[str, Tuple[str, ...]]]]:
-        config = {}
-        for k, v in self[config_type].items():
-            if isinstance(v, dict):
-                config[k] = {}
-                for key in ("include", "exclude"):
-                    if key in v:
-                        config[k][key] = cb(v[key])
-            else:
-                config[k] = cb(v)
-        return config
+        return {
+            k: {key: cb(v[key]) for key in ("include", "exclude") if key in v}
+            if isinstance(v, dict)
+            else cb(v)
+            for k, v in self[config_type].items()
+        }
 
 
 class FormatChecker:
@@ -134,8 +130,7 @@ class FormatChecker:
 
     @cached_property
     def include_dir_order(self):
-        return ",".join(
-            self._include_dir_order if self._include_dir_order else self.config["dir_order"])
+        return ",".join(self._include_dir_order or self.config["dir_order"])
 
     @property
     def namespace_check(self):
@@ -193,9 +188,7 @@ class FormatChecker:
     # look_path searches for the given executable in all directories in PATH
     # environment variable. If it cannot be found, empty string is returned.
     def look_path(self, executable):
-        if executable is None:
-            return ''
-        return shutil.which(executable) or ''
+        return '' if executable is None else shutil.which(executable) or ''
 
     # path_exists checks whether the given path exists. This function assumes that
     # the path is absolute and evaluates environment variables.
@@ -265,12 +258,11 @@ class FormatChecker:
             if file_path.startswith(excluded_path):
                 return []
 
-        nolint = "NOLINT(namespace-%s)" % self.namespace_check.lower()
+        nolint = f"NOLINT(namespace-{self.namespace_check.lower()})"
         text = self.read_file(file_path)
-        if not self.namespace_re.search(text) and not nolint in text:
+        if not self.namespace_re.search(text) and nolint not in text:
             return [
-                "Unable to find %s namespace or %s for file: %s" %
-                (self.namespace_check, nolint, file_path)
+                f"Unable to find {self.namespace_check} namespace or {nolint} for file: {file_path}"
             ]
         return []
 
@@ -290,12 +282,14 @@ class FormatChecker:
         return file_path in self.config.paths["real_time"]["include"]
 
     def allow_listed_for_register_factory(self, file_path):
-        if not file_path.startswith("./test/"):
-            return True
-
-        return any(
-            file_path.startswith(prefix)
-            for prefix in self.config.paths["register_factory_test"]["include"])
+        return (
+            any(
+                file_path.startswith(prefix)
+                for prefix in self.config.paths["register_factory_test"]["include"]
+            )
+            if file_path.startswith("./test/")
+            else True
+        )
 
     def allow_listed_for_serialize_as_string(self, file_path):
         return file_path in self.config.paths["serialize_as_string"]["include"]
@@ -330,8 +324,13 @@ class FormatChecker:
         # Returns true when it is a non test header file or the file_path is in DENYLIST or
         # it is under tools/testdata subdirectory.
 
-        return (file_path.endswith('.h') and not file_path.startswith("./test/") and not file_path in self.config.paths["exception"]["include"]) or file_path in self.config.paths["exception"]["exclude"] \
+        return (
+            file_path.endswith('.h')
+            and not file_path.startswith("./test/")
+            and file_path not in self.config.paths["exception"]["include"]
+            or file_path in self.config.paths["exception"]["exclude"]
             or self.is_in_subdir(file_path, 'tools/testdata')
+        )
 
     def allow_listed_for_build_urls(self, file_path):
         return file_path in self.config.paths["build_urls"]["include"]
@@ -341,9 +340,9 @@ class FormatChecker:
 
     def is_build_file(self, file_path):
         basename = os.path.basename(file_path)
-        if basename in {"BUILD", "BUILD.bazel"} or basename.endswith(".BUILD"):
-            return True
-        return False
+        return bool(
+            basename in {"BUILD", "BUILD.bazel"} or basename.endswith(".BUILD")
+        )
 
     def is_external_build_file(self, file_path):
         return self.is_build_file(file_path) and (
@@ -357,36 +356,35 @@ class FormatChecker:
         return os.path.basename(file_path) == "WORKSPACE"
 
     def is_build_fixer_excluded_file(self, file_path):
-        for excluded_path in self.build_fixer_check_excluded_paths:
-            if file_path.startswith(excluded_path):
-                return True
-        return False
+        return any(
+            file_path.startswith(excluded_path)
+            for excluded_path in self.build_fixer_check_excluded_paths
+        )
 
     def has_invalid_angle_bracket_directory(self, line):
         if not line.startswith(self.config["include_angle"]):
             return False
         path = line[len(self.config["include_angle"]):]
         slash = path.find("/")
-        if slash == -1:
-            return False
-        subdir = path[0:slash]
-        return subdir in self.config.dir_order
+        return False if slash == -1 else path[:slash] in self.config.dir_order
 
     # simple check that all flags are sorted.
     def check_runtime_flags(self, file_path, error_messages):
         previous_flag = ""
-        for line_number, line in enumerate(self.read_lines(file_path)):
+        for line in self.read_lines(file_path):
             if line.startswith("RUNTIME_GUARD"):
                 match = self.config.re["runtime_guard_flag"].match(line)
                 if not match:
-                    error_messages.append("%s does not look like a reloadable flag" % line)
+                    error_messages.append(f"{line} does not look like a reloadable flag")
                     break
 
-                if previous_flag:
-                    if line < previous_flag and match.groups(
-                    )[0] not in self.config["unsorted_flags"]:
-                        error_messages.append(
-                            "%s and %s are out of order\n" % (line, previous_flag))
+                if (
+                    previous_flag
+                    and line < previous_flag
+                    and match.groups()[0] not in self.config["unsorted_flags"]
+                ):
+                    error_messages.append(
+                        "%s and %s are out of order\n" % (line, previous_flag))
                 previous_flag = line
 
     def check_file_contents(self, file_path, checker):
@@ -441,11 +439,12 @@ class FormatChecker:
         wait_for = line.find(".waitFor(")
         if wait_for == -1:
             return False
-        preceding = line[0:wait_for]
-        if preceding.endswith("time_system") or preceding.endswith("timeSystem()") or \
-                preceding.endswith("time_system_"):
-            return False
-        return True
+        preceding = line[:wait_for]
+        return (
+            not preceding.endswith("time_system")
+            and not preceding.endswith("timeSystem()")
+            and not preceding.endswith("time_system_")
+        )
 
     def is_api_proto(self, file_path):
         return file_path.endswith(self.config.suffixes["proto"]) and self.is_api_file(file_path)
@@ -457,10 +456,7 @@ class FormatChecker:
         # Skip this check for check_format's unit-tests.
         if filename.count("/") <= 1:
             return True
-        for subdir in subdirs:
-            if filename.startswith('./' + subdir + '/'):
-                return True
-        return False
+        return any(filename.startswith(f'./{subdir}/') for subdir in subdirs)
 
     # Determines if given token exists in line without leading or trailing token characters
     # e.g. will return True for a line containing foo() but not foo_bar() or baz_foo
@@ -474,10 +470,17 @@ class FormatChecker:
             # (no leading whitespace) violating_symbol foo;
             if index < 0:
                 break
-            if index == 0 or not (line[index - 1].isalnum() or line[index - 1] == '_'):
-                if index + len(token) >= len(line) or not (line[index + len(token)].isalnum()
-                                                           or line[index + len(token)] == '_'):
-                    return True
+            if (
+                index == 0
+                or not (line[index - 1].isalnum() or line[index - 1] == '_')
+            ) and (
+                index + len(token) >= len(line)
+                or not (
+                    line[index + len(token)].isalnum()
+                    or line[index + len(token)] == '_'
+                )
+            ):
+                return True
             index = index + 1
         return False
 
@@ -501,14 +504,14 @@ class FormatChecker:
         for invalid_construct, valid_construct in self.config.replacements["libcxx"].items():
             if invalid_construct in line:
                 report_error(
-                    "term %s should be replaced with standard library term %s" %
-                    (invalid_construct, valid_construct))
+                    f"term {invalid_construct} should be replaced with standard library term {valid_construct}"
+                )
         for invalid_construct, valid_construct in self.config.replacements["code_convention"].items(
         ):
             if invalid_construct in line:
                 report_error(
-                    "term %s should be replaced with preferred term %s" %
-                    (invalid_construct, valid_construct))
+                    f"term {invalid_construct} should be replaced with preferred term {valid_construct}"
+                )
         # Do not include the virtual_includes headers.
         if self.config.re["virtual_include_headers"].search(line):
             report_error("Don't include the virtual includes headers.")
@@ -516,11 +519,12 @@ class FormatChecker:
         # Some errors cannot be fixed automatically, and actionable, consistent,
         # navigable messages should be emitted to make it easy to find and fix
         # the errors by hand.
-        if not self.allow_listed_for_protobuf_deps(file_path):
-            if '"google/protobuf' in line or "google::protobuf" in line:
-                report_error(
-                    "unexpected direct dependency on google.protobuf, use "
-                    "the definitions in common/protobuf/protobuf.h instead.")
+        if not self.allow_listed_for_protobuf_deps(file_path) and (
+            '"google/protobuf' in line or "google::protobuf" in line
+        ):
+            report_error(
+                "unexpected direct dependency on google.protobuf, use "
+                "the definitions in common/protobuf/protobuf.h instead.")
         if line.startswith("#include <mutex>") or line.startswith("#include <condition_variable"):
             # We don't check here for std::mutex because that may legitimately show up in
             # comments, for example this one.
@@ -531,12 +535,20 @@ class FormatChecker:
             # We don't check here for std::shared_timed_mutex because that may
             # legitimately show up in comments, for example this one.
             report_error("Don't use <shared_mutex>, use absl::Mutex for reader/writer locks.")
-        if not self.allow_listed_for_realtime(
-                file_path) and not "NO_CHECK_FORMAT(real_time)" in line:
-            if "RealTimeSource" in line or \
-              ("RealTimeSystem" in line and not "TestRealTimeSystem" in line) or \
-              "std::chrono::system_clock::now" in line or "std::chrono::steady_clock::now" in line or \
-              "std::this_thread::sleep_for" in line or " usleep(" in line or "::usleep(" in line:
+        if (
+            not self.allow_listed_for_realtime(file_path)
+            and "NO_CHECK_FORMAT(real_time)" not in line
+        ):
+            if (
+                "RealTimeSource" in line
+                or "RealTimeSystem" in line
+                and "TestRealTimeSystem" not in line
+                or "std::chrono::system_clock::now" in line
+                or "std::chrono::steady_clock::now" in line
+                or "std::this_thread::sleep_for" in line
+                or " usleep(" in line
+                or "::usleep(" in line
+            ):
                 report_error(
                     "Don't reference real-world time sources; use TimeSystem::advanceTime(Wait|Async)"
                 )
@@ -551,15 +563,15 @@ class FormatChecker:
             report_error(
                 "Don't use ambiguous duration(value), use an explicit duration type, e.g. Event::TimeSystem::Milliseconds(value)"
             )
-        if not self.allow_listed_for_register_factory(file_path):
-            if "Registry::RegisterFactory<" in line or "REGISTER_FACTORY" in line:
-                report_error(
-                    "Don't use Registry::RegisterFactory or REGISTER_FACTORY in tests, "
-                    "use Registry::InjectFactory instead.")
-        if not self.allow_listed_for_unpack_to(file_path):
-            if "UnpackTo" in line:
-                report_error(
-                    "Don't use UnpackTo() directly, use MessageUtil::unpackToNoThrow() instead")
+        if not self.allow_listed_for_register_factory(file_path) and (
+            "Registry::RegisterFactory<" in line or "REGISTER_FACTORY" in line
+        ):
+            report_error(
+                "Don't use Registry::RegisterFactory or REGISTER_FACTORY in tests, "
+                "use Registry::InjectFactory instead.")
+        if not self.allow_listed_for_unpack_to(file_path) and "UnpackTo" in line:
+            report_error(
+                "Don't use UnpackTo() directly, use MessageUtil::unpackToNoThrow() instead")
         # Check that we use the absl::Time library
         if self.token_in_line("std::get_time", line):
             if "test/" in file_path:
@@ -611,12 +623,16 @@ class FormatChecker:
             report_error("Don't use std::monostate; use absl::monostate instead")
         if self.token_in_line("std::optional", line):
             report_error("Don't use std::optional; use absl::optional instead")
-        if not self.allow_listed_for_std_string_view(
-                file_path) and not "NOLINT(std::string_view)" in line:
-            if self.token_in_line("std::string_view", line) or self.token_in_line("toStdStringView",
-                                                                                  line):
-                report_error(
-                    "Don't use std::string_view or toStdStringView; use absl::string_view instead")
+        if (
+            not self.allow_listed_for_std_string_view(file_path)
+            and "NOLINT(std::string_view)" not in line
+            and (
+                self.token_in_line("std::string_view", line)
+                or self.token_in_line("toStdStringView", line)
+            )
+        ):
+            report_error(
+                "Don't use std::string_view or toStdStringView; use absl::string_view instead")
         if self.token_in_line("std::variant", line):
             report_error("Don't use std::variant; use absl::variant instead")
         if self.token_in_line("std::visit", line):
@@ -668,7 +684,7 @@ class FormatChecker:
                 "Don't use Protobuf::util::JsonStringToMessage, use TestUtility::loadFromJson.")
 
         if self.is_in_subdir(file_path, 'source') and file_path.endswith('.cc') and \
-            ('.counterFromString(' in line or '.gaugeFromString(' in line or
+                ('.counterFromString(' in line or '.gaugeFromString(' in line or
              '.histogramFromString(' in line or '.textReadoutFromString(' in line or
              '->counterFromString(' in line or '->gaugeFromString(' in line or
                 '->histogramFromString(' in line or '->textReadoutFromString(' in line):
@@ -706,22 +722,22 @@ class FormatChecker:
                         "Don't call grpc_init() or grpc_shutdown() directly, instantiate "
                         + "Grpc::GoogleGrpcContext. See #8282")
 
-        if not self.included_for_memcpy(file_path) and \
-           not ("test/" in file_path) and \
-           ("memcpy(" in line) and \
-           not ("NOLINT(safe-memcpy)" in line):
+        if (
+            not self.included_for_memcpy(file_path)
+            and "test/" not in file_path
+            and "memcpy(" in line
+            and "NOLINT(safe-memcpy)" not in line
+        ):
             report_error(
                 "Don't call memcpy() directly; use safeMemcpy, safeMemcpyUnsafeSrc, safeMemcpyUnsafeDst or MemBlockBuilder instead."
             )
 
-        if self.deny_listed_for_exceptions(file_path):
-            # Skpping cases where 'throw' is a substring of a symbol like in "foothrowBar".
-            if "throw" in line.split():
-                comment_match = self.config.re["comment"].search(line)
-                if comment_match is None or comment_match.start(0) > line.find("throw"):
-                    report_error(
-                        "Don't introduce throws into exception-free files, use error "
-                        + "statuses instead.")
+        if self.deny_listed_for_exceptions(file_path) and "throw" in line.split():
+            comment_match = self.config.re["comment"].search(line)
+            if comment_match is None or comment_match.start(0) > line.find("throw"):
+                report_error(
+                    "Don't introduce throws into exception-free files, use error "
+                    + "statuses instead.")
 
         if "lua_pushlightuserdata" in line:
             report_error(
@@ -732,14 +748,18 @@ class FormatChecker:
         if file_path.endswith(self.config.suffixes["proto"]):
             exclude_path = ['v1', 'v2']
             result = self.config.re["proto_validation_string"].search(line)
-            if result is not None:
-                if not any(x in file_path for x in exclude_path):
-                    report_error("min_bytes is DEPRECATED, Use min_len.")
+            if result is not None and all(
+                x not in file_path for x in exclude_path
+            ):
+                report_error("min_bytes is DEPRECATED, Use min_len.")
 
     def check_build_line(self, line, file_path, report_error):
-        if "@bazel_tools" in line and not (self.is_starlark_file(file_path)
-                                           or file_path.startswith("./bazel/")
-                                           or "python/runfiles" in line):
+        if (
+            "@bazel_tools" in line
+            and not self.is_starlark_file(file_path)
+            and not file_path.startswith("./bazel/")
+            and "python/runfiles" not in line
+        ):
             report_error(
                 "unexpected @bazel_tools reference, please indirect via a definition in //bazel")
         if not self.allow_listed_for_protobuf_deps(file_path) and '"protobuf"' in line:
@@ -767,15 +787,25 @@ class FormatChecker:
         error_messages = []
 
         # TODO(htuch): Add API specific BUILD fixer script.
-        if not self.is_build_fixer_excluded_file(file_path) and not self.is_api_file(
-                file_path) and not self.is_starlark_file(file_path) and not self.is_workspace_file(
-                    file_path):
-            if os.system("%s %s %s" %
-                         (self.config.paths["build_fixer_py"], file_path, file_path)) != 0:
-                error_messages += ["envoy_build_fixer rewrite failed for file: %s" % file_path]
+        if (
+            not self.is_build_fixer_excluded_file(file_path)
+            and not self.is_api_file(file_path)
+            and not self.is_starlark_file(file_path)
+            and not self.is_workspace_file(file_path)
+            and os.system(
+                f'{self.config.paths["build_fixer_py"]} {file_path} {file_path}'
+            )
+            != 0
+        ):
+            error_messages += [f"envoy_build_fixer rewrite failed for file: {file_path}"]
 
-        if os.system("%s -lint=fix -mode=fix %s" % (self.config.buildifier_path, file_path)) != 0:
-            error_messages += ["buildifier rewrite failed for file: %s" % file_path]
+        if (
+            os.system(
+                f"{self.config.buildifier_path} -lint=fix -mode=fix {file_path}"
+            )
+            != 0
+        ):
+            error_messages += [f"buildifier rewrite failed for file: {file_path}"]
         return error_messages
 
     def check_build_path(self, file_path):
@@ -784,21 +814,20 @@ class FormatChecker:
         if not self.is_build_fixer_excluded_file(file_path) and not self.is_api_file(
                 file_path) and not self.is_starlark_file(file_path) and not self.is_workspace_file(
                     file_path):
-            command = "%s %s | diff %s -" % (
-                self.config.paths["build_fixer_py"], file_path, file_path)
+            command = f'{self.config.paths["build_fixer_py"]} {file_path} | diff {file_path} -'
             error_messages += self.execute_command(
                 command, "envoy_build_fixer check failed", file_path)
 
-        if self.is_build_file(file_path) and file_path.startswith(self.api_prefix + "envoy"):
-            found = False
-            for line in self.read_lines(file_path):
-                if "api_proto_package(" in line:
-                    found = True
-                    break
+        if self.is_build_file(file_path) and file_path.startswith(
+            f"{self.api_prefix}envoy"
+        ):
+            found = any(
+                "api_proto_package(" in line for line in self.read_lines(file_path)
+            )
             if not found:
                 error_messages += ["API build file does not provide api_proto_package()"]
 
-        command = "%s -mode=diff %s" % (self.config.buildifier_path, file_path)
+        command = f"{self.config.buildifier_path} -mode=diff {file_path}"
         error_messages += self.execute_command(command, "buildifier check failed", file_path)
         error_messages += self.check_file_contents(file_path, self.check_build_line)
         return error_messages
@@ -818,13 +847,10 @@ class FormatChecker:
 
         if not file_path.endswith(self.config.suffixes["proto"]):
             error_messages += self.check_namespace(file_path)
-            command = (
-                "%s --include_dir_order %s --path %s | diff %s -" % (
-                    self.config.paths["header_order_py"], self.include_dir_order, file_path,
-                    file_path))
+            command = f'{self.config.paths["header_order_py"]} --include_dir_order {self.include_dir_order} --path {file_path} | diff {file_path} -'
             error_messages += self.execute_command(
                 command, "header_order.py check failed", file_path)
-        command = ("%s %s | diff %s -" % (self.config.clang_format_path, file_path, file_path))
+        command = f"{self.config.clang_format_path} {file_path} | diff {file_path} -"
         error_messages += self.execute_command(command, "clang-format check failed", file_path)
         return error_messages
 
@@ -835,31 +861,30 @@ class FormatChecker:
     def execute_command(self, command, error_message, file_path, regex=None):
         regex = regex or self.config.re["line_number"]
         try:
-            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT).strip()
-            if output:
+            if output := subprocess.check_output(
+                command, shell=True, stderr=subprocess.STDOUT
+            ).strip():
                 return output.decode('utf-8').split("\n")
             return []
         except subprocess.CalledProcessError as e:
-            if (e.returncode != 0 and e.returncode != 1):
-                return ["ERROR: something went wrong while executing: %s" % e.cmd]
+            if e.returncode not in [0, 1]:
+                return [f"ERROR: something went wrong while executing: {e.cmd}"]
             # In case we can't find any line numbers, record an error message first.
-            error_messages = ["%s for file: %s" % (error_message, file_path)]
+            error_messages = [f"{error_message} for file: {file_path}"]
             for line in e.output.decode('utf-8').splitlines():
-                for num in regex.findall(line):
-                    error_messages.append("  %s:%s" % (file_path, num))
+                error_messages.extend(f"  {file_path}:{num}" for num in regex.findall(line))
             return error_messages
 
     def fix_header_order(self, file_path):
-        command = "%s --rewrite --include_dir_order %s --path %s" % (
-            self.config.paths["header_order_py"], self.include_dir_order, file_path)
+        command = f'{self.config.paths["header_order_py"]} --rewrite --include_dir_order {self.include_dir_order} --path {file_path}'
         if os.system(command) != 0:
-            return ["header_order.py rewrite error: %s" % (file_path)]
+            return [f"header_order.py rewrite error: {file_path}"]
         return []
 
     def clang_format(self, file_path):
-        command = "%s -i %s" % (self.config.clang_format_path, file_path)
+        command = f"{self.config.clang_format_path} -i {file_path}"
         if os.system(command) != 0:
-            return ["clang-format rewrite error: %s" % (file_path)]
+            return [f"clang-format rewrite error: {file_path}"]
         return []
 
     def check_format(self, file_path, fail_on_diff=False):
@@ -877,20 +902,17 @@ class FormatChecker:
                     error_messages += self.check_build_path(file_path)
             else:
                 error_messages += self.check_build_path(file_path)
-        else:
-            if try_to_fix:
-                orig_error_messages = self.check_source_path(file_path)
-                if orig_error_messages:
-                    error_messages += self.fix_source_path(file_path)
-                    error_messages += self.check_source_path(file_path)
-            else:
+        elif try_to_fix:
+            orig_error_messages = self.check_source_path(file_path)
+            if orig_error_messages:
+                error_messages += self.fix_source_path(file_path)
                 error_messages += self.check_source_path(file_path)
+        else:
+            error_messages += self.check_source_path(file_path)
 
         if error_messages:
-            return ["From %s" % file_path] + error_messages
-        if not error_messages and fail_on_diff:
-            return orig_error_messages
-        return error_messages
+            return [f"From {file_path}"] + error_messages
+        return orig_error_messages if fail_on_diff else error_messages
 
     def check_format_return_trace_on_error(self, file_path, fail_on_diff=False):
         """Run check_format and return the traceback of any exception."""
@@ -906,14 +928,14 @@ class FormatChecker:
       owned_directories: directories currently listed in CODEOWNERS.
       error_messages: where to put an error message for new unowned directories.
     """
-        found = False
-        for owned in owned_directories:
-            if owned.startswith(dir_name) or dir_name.startswith(owned):
-                found = True
-                break
+        found = any(
+            owned.startswith(dir_name) or dir_name.startswith(owned)
+            for owned in owned_directories
+        )
         if not found:
             error_messages.append(
-                "New directory %s appears to not have owners in CODEOWNERS" % dir_name)
+                f"New directory {dir_name} appears to not have owners in CODEOWNERS"
+            )
 
     def check_format_visitor(self, arg, dir_name, names, fail_on_diff=False):
         """Run check_format in parallel for the given files.
@@ -932,15 +954,15 @@ class FormatChecker:
         # the caller.
         pool, result_list, owned_directories, error_messages = arg
 
-        # Sanity check CODEOWNERS.  This doesn't need to be done in a multi-threaded
-        # manner as it is a small and limited list.
-        source_prefix = './source/'
         core_extensions_full_prefix = './source/extensions/'
         # Check to see if this directory is a subdir under /source/extensions
         # Also ignore top level directories under /source/extensions since we don't
         # need owners for source/extensions/access_loggers etc, just the subdirectories.
         if dir_name.startswith(
                 core_extensions_full_prefix) and '/' in dir_name[len(core_extensions_full_prefix):]:
+            # Sanity check CODEOWNERS.  This doesn't need to be done in a multi-threaded
+            # manner as it is a small and limited list.
+            source_prefix = './source/'
             self.check_owners(dir_name[len(source_prefix):], owned_directories, error_messages)
 
         # For contrib extensions we track ownership at the top level only.
@@ -970,7 +992,7 @@ class FormatChecker:
     def check_error_messages(self, error_messages):
         if error_messages:
             for e in error_messages:
-                print("ERROR: %s" % e)
+                print(f"ERROR: {e}")
             return True
         return False
 
@@ -981,7 +1003,7 @@ class FormatChecker:
 def normalize_path(path):
     """Convert path to form ./path/to/dir/ for directories and ./path/to/file otherwise"""
     if not path.startswith("./"):
-        path = "./" + path
+        path = f"./{path}"
 
     isdir = os.path.isdir(path)
     if isdir and not path.endswith("/"):
@@ -1074,26 +1096,25 @@ if __name__ == "__main__":
         )
 
     def check_visibility(error_messages):
-        command = (
-            "git diff $(tools/git/last_github_commit.sh) -- source/extensions/* %s |grep '+.*visibility ='"
-            % "".join([f"':(exclude){c}' " for c in format_checker.config["visibility_excludes"]]))
+        command = f"""git diff $(tools/git/last_github_commit.sh) -- source/extensions/* {"".join([f"':(exclude){c}' " for c in format_checker.config["visibility_excludes"]])} |grep '+.*visibility ='"""
         try:
-            output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT).strip()
-            if output:
+            if output := subprocess.check_output(
+                command, shell=True, stderr=subprocess.STDOUT
+            ).strip():
                 error_messages.append(
                     "This change appears to add visibility rules. Please get senior maintainer "
                     "approval to add an exemption to check_visibility tools/code_format/check_format.py"
                 )
-            output = subprocess.check_output(
+            if output := subprocess.check_output(
                 "grep -r --include BUILD envoy_package source/extensions/*",
                 shell=True,
-                stderr=subprocess.STDOUT).strip()
-            if output:
+                stderr=subprocess.STDOUT,
+            ).strip():
                 error_messages.append(
                     "envoy_package is not allowed to be used in source/extensions BUILD files.")
         except subprocess.CalledProcessError as e:
-            if (e.returncode != 0 and e.returncode != 1):
-                error_messages.append("Failed to check visibility with command %s" % command)
+            if e.returncode not in [0, 1]:
+                error_messages.append(f"Failed to check visibility with command {command}")
 
     def get_owners():
         with open('./OWNERS.md') as f:
@@ -1103,7 +1124,7 @@ if __name__ == "__main__":
                     return maintainers
                 m = format_checker.config.re["maintainers"].search(line)
                 if m is not None:
-                    maintainers.append("@" + m.group(1).lower())
+                    maintainers.append(f"@{m.group(1).lower()}")
 
     # Returns the list of directories with owners listed in CODEOWNERS. May append errors to
     # error_messages.
@@ -1122,37 +1143,37 @@ if __name__ == "__main__":
                         owners = format_checker.config.re["owner"].findall(m.group(2).strip())
                         if len(owners) < 2:
                             error_messages.append(
-                                "Extensions require at least 2 owners in CODEOWNERS:\n"
-                                "    {}".format(line))
+                                f"Extensions require at least 2 owners in CODEOWNERS:\n    {line}"
+                            )
                         maintainer = len(set(owners).intersection(set(maintainers))) > 0
                         if not maintainer:
                             error_messages.append(
-                                "Extensions require at least one maintainer OWNER:\n"
-                                "    {}".format(line))
+                                f"Extensions require at least one maintainer OWNER:\n    {line}"
+                            )
 
                     m = format_checker.config.re["codeowners_contrib"].search(line)
                     if m is not None and not line.startswith('#'):
                         stripped_path = m.group(1).strip()
                         if not stripped_path.endswith('/'):
                             error_messages.append(
-                                "Contrib CODEOWNERS entry '{}' must end in '/'".format(
-                                    stripped_path))
+                                f"Contrib CODEOWNERS entry '{stripped_path}' must end in '/'"
+                            )
                             continue
 
                         if not (stripped_path.count('/') == 3 or
                                 (stripped_path.count('/') == 4
                                  and stripped_path.startswith('/contrib/common/'))):
                             error_messages.append(
-                                "Contrib CODEOWNERS entry '{}' must be 2 directories deep unless in /contrib/common/ and then it can be 3 directories deep"
-                                .format(stripped_path))
+                                f"Contrib CODEOWNERS entry '{stripped_path}' must be 2 directories deep unless in /contrib/common/ and then it can be 3 directories deep"
+                            )
                             continue
 
                         owned.append(stripped_path)
                         owners = format_checker.config.re["owner"].findall(m.group(2).strip())
                         if len(owners) < 2:
                             error_messages.append(
-                                "Contrib extensions require at least 2 owners in CODEOWNERS:\n"
-                                "    {}".format(line))
+                                f"Contrib extensions require at least 2 owners in CODEOWNERS:\n    {line}"
+                            )
 
             return owned
         except IOError:
@@ -1184,12 +1205,17 @@ if __name__ == "__main__":
                 _files = []
                 for filename in files:
                     file_path = os.path.join(root, filename)
-                    check_file = (
-                        path_predicate(filename) and not file_path.startswith(excluded_prefixes)
-                        and file_path.endswith(format_checker.config.suffixes["included"]) and not (
+                    if check_file := (
+                        path_predicate(filename)
+                        and not file_path.startswith(excluded_prefixes)
+                        and file_path.endswith(
+                            format_checker.config.suffixes["included"]
+                        )
+                        and not (
                             file_path.endswith(format_checker.config.suffixes["proto"])
-                            and root.startswith(args.api_prefix)))
-                    if check_file:
+                            and root.startswith(args.api_prefix)
+                        )
+                    ):
                         _files.append(filename)
                 if not _files:
                     continue

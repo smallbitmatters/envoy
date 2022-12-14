@@ -55,7 +55,7 @@ def upgraded_package(type_desc):
         s = re.sub(pattern, repl, type_desc.qualified_package)
         if s != type_desc.qualified_package:
             return s
-    raise ValueError('{} is not upgradable'.format(type_desc.qualified_package))
+    raise ValueError(f'{type_desc.qualified_package} is not upgradable')
 
 
 def upgraded_type(type_name, type_desc):
@@ -118,7 +118,7 @@ def next_version_upgrade(type_name, type_map, next_version_upgrade_memo, visited
     # If we have a loop, we can't learn anything new by circling around again.
     if type_name in visited:
         return False
-    visited = visited.union(set([type_name]))
+    visited = visited.union({type_name})
     # If we have seen this type in a previous next_version_upgrade(), use that
     # result.
     if type_name in next_version_upgrade_memo:
@@ -144,27 +144,36 @@ if __name__ == '__main__':
     type_whispers = map(load_types, type_desc_paths)
 
     # Aggregate type descriptors to a single type map.
-    type_map = dict(sum([list(t.types.items()) for t in type_whispers], []))
-    all_pkgs = set([type_desc.qualified_package for type_desc in type_map.values()])
+    type_map = dict(sum((list(t.types.items()) for t in type_whispers), []))
+    all_pkgs = {type_desc.qualified_package for type_desc in type_map.values()}
 
     # Determine via DFS on each type descriptor and its deps which packages require upgrade.
     next_version_upgrade_memo = {}
-    next_versions_pkgs = set([
+    next_versions_pkgs = {
         type_desc.qualified_package
         for type_name, type_desc in type_map.items()
         if next_version_upgrade(type_name, type_map, next_version_upgrade_memo)
-    ]).union(set(['envoy.config.retry.previous_priorities', 'envoy.config.cluster.redis']))
+    }.union(
+        {
+            'envoy.config.retry.previous_priorities',
+            'envoy.config.cluster.redis',
+        }
+    )
 
     # Generate type map entries for upgraded types. We run this twice to allow
     # things like a v2 deprecated map field's synthesized map entry to forward
     # propagate to v4alpha (for shadowing purposes).
     for _ in range(2):
-        type_map.update([
+        type_map |= [
             upgraded_type_with_description(type_name, type_desc)
             for type_name, type_desc in type_map.items()
-            if type_desc.qualified_package in next_versions_pkgs and (
-                type_desc.active or type_desc.deprecated_type or type_desc.map_entry)
-        ])
+            if type_desc.qualified_package in next_versions_pkgs
+            and (
+                type_desc.active
+                or type_desc.deprecated_type
+                or type_desc.map_entry
+            )
+        ]
 
     # Generate the type database proto. To provide some stability across runs, in
     # terms of the emitted proto binary blob that we track in git, we sort before
