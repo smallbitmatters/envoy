@@ -259,8 +259,9 @@ class VersionHistories(runner.Runner):
 
     async def write_version_history_minor_index(
             self, minor_version: version.Version, patch_versions) -> None:
-        skip_first = (self.project.is_dev and self.project.is_current(patch_versions[0]))
-        if skip_first:
+        if skip_first := (
+            self.project.is_dev and self.project.is_current(patch_versions[0])
+        ):
             patch_versions = patch_versions[1:]
         current_release = patch_versions[0]
         original_release = self.project.changelogs[patch_versions[-1]]

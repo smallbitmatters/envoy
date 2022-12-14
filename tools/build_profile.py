@@ -13,8 +13,7 @@ def print_profile(f):
     prev_cmd = None
     prev_timestamp = None
     for line in f:
-        sr = re.match('\++ (\d+\.\d+) (.*)', line)
-        if sr:
+        if sr := re.match('\++ (\d+\.\d+) (.*)', line):
             timestamp, cmd = sr.groups()
             if prev_cmd:
                 print('%.2f %s' % (float(timestamp) - float(prev_timestamp), prev_cmd))

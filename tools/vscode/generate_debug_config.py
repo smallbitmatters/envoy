@@ -37,7 +37,7 @@ def binary_path(bazel_bin, target):
 
 
 def build_binary_with_debug_info(target):
-    targets = [target, target + ".dwp"]
+    targets = [target, f"{target}.dwp"]
     subprocess.check_call(["bazel", "build", "-c", "dbg"] + BAZEL_OPTIONS + targets)
 
     bazel_bin = bazel_info("bazel-bin", ["-c", "dbg"])
@@ -62,30 +62,30 @@ def write_launch_json(workspace, launch):
 
 def gdb_config(target, binary, workspace, execroot, arguments):
     return {
-        "name": "gdb " + target,
+        "name": f"gdb {target}",
         "request": "launch",
         "arguments": arguments,
         "type": "gdb",
         "target": str(binary),
-        "debugger_args": ["--directory=" + execroot],
+        "debugger_args": [f"--directory={execroot}"],
         "cwd": "${workspaceFolder}",
-        "valuesFormatting": "disabled"
+        "valuesFormatting": "disabled",
     }
 
 
 def lldb_config(target, binary, workspace, execroot, arguments):
     return {
-        "name": "lldb " + target,
+        "name": f"lldb {target}",
         "program": str(binary),
         "sourceMap": {
             "/proc/self/cwd": workspace,
-            "/proc/self/cwd/external": execroot + "/external",
-            "/proc/self/cwd/bazel-out": execroot + "/bazel-out"
+            "/proc/self/cwd/external": f"{execroot}/external",
+            "/proc/self/cwd/bazel-out": f"{execroot}/bazel-out",
         },
         "cwd": "${workspaceFolder}",
         "args": shlex.split(arguments),
         "type": "lldb",
-        "request": "launch"
+        "request": "launch",
     }
 
 

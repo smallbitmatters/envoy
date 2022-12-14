@@ -36,9 +36,9 @@ def Coalesce(trace):
 def ToTestEvent(direction, event):
     test_event = capture_fuzz_pb2.Event()
     if event.HasField('read'):
-        setattr(test_event, '%s_send_bytes' % direction, event.read.data)
+        setattr(test_event, f'{direction}_send_bytes', event.read.data)
     elif event.HasField('write'):
-        getattr(test_event, '%s_recv_bytes' % direction).MergeFrom(empty_pb2.Empty())
+        getattr(test_event, f'{direction}_recv_bytes').MergeFrom(empty_pb2.Empty())
     return test_event
 
 
@@ -88,6 +88,6 @@ def CaptureFuzzGen(listener_path, cluster_path=None):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2 or len(sys.argv) > 3:
-        print('Usage: %s <listener capture> [<cluster capture>]' % sys.argv[0])
+        print(f'Usage: {sys.argv[0]} <listener capture> [<cluster capture>]')
         sys.exit(1)
     CaptureFuzzGen(*sys.argv[1:])

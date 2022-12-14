@@ -51,6 +51,8 @@ def get_versioning_annotation(options):
     Returns:
         versioning.Annotation if set otherwise None.
     """
-    if not options.HasExtension(versioning_pb2.versioning):
-        return None
-    return options.Extensions[versioning_pb2.versioning]
+    return (
+        options.Extensions[versioning_pb2.versioning]
+        if options.HasExtension(versioning_pb2.versioning)
+        else None
+    )

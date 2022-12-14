@@ -39,7 +39,7 @@ def get_input_file(filename, extra_input_files=None):
     for f in files_to_copy:
         infile = os.path.join(src, f)
         directory = os.path.dirname(f)
-        if not directory == '' and not os.path.isdir(directory):
+        if directory != '' and not os.path.isdir(directory):
             os.makedirs(directory)
         shutil.copyfile(infile, f)
     return filename
@@ -62,12 +62,12 @@ def fix_file_expecting_success(file, extra_input_files=None):
     command, infile, outfile, status, stdout = fix_file_helper(
         file, extra_input_files=extra_input_files)
     if status != 0:
-        print("FAILED: " + infile)
+        print(f"FAILED: {infile}")
         emit_stdout_as_error(stdout)
         return 1
-    status, stdout, stderr = run_command('diff ' + outfile + ' ' + infile + '.gold')
+    status, stdout, stderr = run_command(f'diff {outfile} {infile}.gold')
     if status != 0:
-        print("FAILED: " + infile)
+        print(f"FAILED: {infile}")
         emit_stdout_as_error(stdout + stderr)
         return 1
     return 0
@@ -77,9 +77,9 @@ def fix_file_expecting_no_change(file):
     command, infile, outfile, status, stdout = fix_file_helper(file)
     if status != 0:
         return 1
-    status, stdout, stderr = run_command('diff ' + outfile + ' ' + infile)
+    status, stdout, stderr = run_command(f'diff {outfile} {infile}')
     if status != 0:
-        logging.error(file + ': expected file to remain unchanged')
+        logging.error(f'{file}: expected file to remain unchanged')
         return 1
     return 0
 
@@ -90,7 +90,9 @@ def emit_stdout_as_error(stdout):
 
 def expect_error(filename, status, stdout, expected_substring):
     if status == 0:
-        logging.error("%s: Expected failure `%s`, but succeeded" % (filename, expected_substring))
+        logging.error(
+            f"{filename}: Expected failure `{expected_substring}`, but succeeded"
+        )
         return 1
     for line in stdout:
         if expected_substring in line:
@@ -128,7 +130,8 @@ def check_tool_not_found_error():
         os.environ["PATH"] = oldPath
         return 0
     errors = check_file_expecting_error(
-        "no_namespace_envoy.cc", "Command %s not found." % clang_format)
+        "no_namespace_envoy.cc", f"Command {clang_format} not found."
+    )
     os.environ["PATH"] = oldPath
     return errors
 

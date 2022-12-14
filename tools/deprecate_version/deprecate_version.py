@@ -55,12 +55,11 @@ def create_issues(access_token, runtime_and_pr):
     repo = git.get_repo('envoyproxy/envoy')
 
     # Find GitHub label objects for LABELS.
-    labels = []
-    for label in repo.get_labels():
-        if label.name in LABELS:
-            labels.append(label)
+    labels = [label for label in repo.get_labels() if label.name in LABELS]
     if len(labels) != len(LABELS):
-        raise DeprecateVersionError('Unknown labels (expected %s, got %s)' % (LABELS, labels))
+        raise DeprecateVersionError(
+            f'Unknown labels (expected {LABELS}, got {labels})'
+        )
 
     issues = []
     for runtime_guard, pr, commit in runtime_and_pr:
@@ -75,13 +74,13 @@ def create_issues(access_token, runtime_and_pr):
             # Extract commit message, sha, and author.
             # Only keep commit message title (remove description), and truncate to 50 characters.
             change_title = commit.message.split('\n')[0][:50]
-            number = ('commit %s') % commit.hexsha
+            number = f'commit {commit.hexsha}'
             email = commit.author.email
             # Use the commit author's email to search through users for their login.
             search_user = git.search_users(email.split('@')[0] + " in:email")
             login = search_user[0].login if search_user and search_user.totalCount else None
 
-        title = '%s deprecation' % (runtime_guard)
+        title = f'{runtime_guard} deprecation'
         body = (
             'Your change %s (%s) introduced a runtime guarded feature. It has been 6 months since '
             'the new code has been exercised by default, so it\'s time to remove the old code '
@@ -90,14 +89,13 @@ def create_issues(access_token, runtime_and_pr):
 
         print(title)
         print(body)
-        print('  >> Assigning to %s' % (login or email))
-        search_title = '%s in:title' % title
+        print(f'  >> Assigning to {login or email}')
+        search_title = f'{title} in:title'
 
-        # TODO(htuch): Figure out how to do this without legacy and faster.
-        exists = repo.legacy_search_issues('open', search_title) or repo.legacy_search_issues(
-            'closed', search_title)
-        if exists:
-            print("Issue with %s already exists" % search_title)
+        if exists := repo.legacy_search_issues(
+            'open', search_title
+        ) or repo.legacy_search_issues('closed', search_title):
+            print(f"Issue with {search_title} already exists")
             print(exists)
             print('  >> Issue already exists, not posting!')
         else:
@@ -145,9 +143,8 @@ def get_runtime_and_pr():
     for commit, lines in repo.blame(rev='HEAD', file='source/common/runtime/runtime_features.cc',
                                     **{"ignore-rev": "93cd7c7835a"}):
         for line in lines:
-            match = runtime_features.match(line)
-            if match:
-                runtime_guard = match.group(1)
+            if match := runtime_features.match(line):
+                runtime_guard = match[1]
                 if runtime_guard == 'envoy_reloadable_features_test_feature_false':
                     print("Found end sentinel\n")
                     if not found_test_feature_true:
@@ -161,13 +158,18 @@ def get_runtime_and_pr():
                     continue
                 pr_num = re.search('\(#(\d+)\)', commit.message)
                 # Some commits may not come from a PR (if they are part of a security point release).
-                pr = (int(pr_num.group(1))) if pr_num else None
+                pr = int(pr_num[1]) if pr_num else None
                 pr_date = date.fromtimestamp(commit.committed_date)
                 removable = (pr_date < removal_date)
                 # Add the runtime guard and PR to the list to file issues about.
                 print(
-                    'Flag ' + runtime_guard + ' added at ' + str(pr_date) + ' '
-                    + (removable and 'and is safe to remove' or 'is not ready to remove'))
+                    f'Flag {runtime_guard} added at {str(pr_date)} '
+                    + (
+                        removable
+                        and 'and is safe to remove'
+                        or 'is not ready to remove'
+                    )
+                )
                 if removable:
                     features_to_flip.append((runtime_guard, pr, commit))
     print('Failed to find test_feature_false.  Script needs fixing')

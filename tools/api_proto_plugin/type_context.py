@@ -59,9 +59,14 @@ class SourceCodeInfo(object):
     def file_level_annotations(self):
         """Obtain inferred file level annotations."""
         return dict(
-            sum([
-                list(annotations.extract_annotations(c).items()) for c in self.file_level_comments
-            ], []))
+            sum(
+                (
+                    list(annotations.extract_annotations(c).items())
+                    for c in self.file_level_comments
+                ),
+                [],
+            )
+        )
 
     def location_path_lookup(self, path):
         """Lookup SourceCodeInfo.Location by path in SourceCodeInfo.
@@ -162,10 +167,7 @@ class TypeContext(object):
         self.deprecated = False
 
     def _extend(self, path, type_name, name, deprecated=False):
-        if not self.name:
-            extended_name = name
-        else:
-            extended_name = '%s.%s' % (self.name, name)
+        extended_name = f'{self.name}.{name}' if self.name else name
         extended = TypeContext(self.source_code_info, extended_name)
         extended.path = self.path + path
         extended.type_name = type_name

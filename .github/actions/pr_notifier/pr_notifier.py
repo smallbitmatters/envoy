@@ -65,17 +65,12 @@ API_REVIEWERS = {
 
 def get_slo_hours():
     # on Monday, allow for 24h + 48h
-    if datetime.date.today().weekday() == 0:
-        return 72
-    return 24
+    return 72 if datetime.date.today().weekday() == 0 else 24
 
 
 # Return true if the PR has a waiting tag, false otherwise.
 def is_waiting(labels):
-    for label in labels:
-        if label.name == 'waiting' or label.name == 'waiting:any':
-            return True
-    return False
+    return any(label.name in ['waiting', 'waiting:any'] for label in labels)
 
 
 def is_contrib(labels):
@@ -84,10 +79,7 @@ def is_contrib(labels):
 
 # Return true if the PR has an API tag, false otherwise.
 def is_api(labels):
-    for label in labels:
-        if label.name == 'api':
-            return True
-    return False
+    return any(label.name == 'api' for label in labels)
 
 
 # Generate a pr message, bolding the time if it's out-SLO
@@ -129,11 +121,9 @@ def needs_api_review(labels, repo, pr_info):
     # API review, otherwise it's set.
     headers, data = repo._requester.requestJsonAndCheck(
         "GET",
-        ("https://api.github.com/repos/envoyproxy/envoy/statuses/" + pr_info.head.sha),
+        f"https://api.github.com/repos/envoyproxy/envoy/statuses/{pr_info.head.sha}",
     )
-    if (data and data[0]["state"] == 'pending'):
-        return True
-    return False
+    return bool((data and data[0]["state"] == 'pending'))
 
 
 def track_prs():
@@ -143,9 +133,7 @@ def track_prs():
     # The list of PRs which are not waiting, but are well within review SLO
     recent_prs = []
     # A dict of maintainer : outstanding_pr_string to be sent to slack
-    maintainers_and_prs = {}
-    # A placeholder for unassigned PRs, to be sent to #maintainers eventually
-    maintainers_and_prs['unassigned'] = ""
+    maintainers_and_prs = {'unassigned': ""}
     # A dict of shephard : outstanding_pr_string to be sent to slack
     api_review_and_prs = {}
     # Out-SLO PRs to be sent to #envoy-maintainer-oncall
@@ -188,7 +176,7 @@ def track_prs():
 
         # If there was no maintainer, track it as unassigned.
         if not has_maintainer_assignee and not is_contrib(labels):
-            maintainers_and_prs['unassigned'] = maintainers_and_prs['unassigned'] + message
+            maintainers_and_prs['unassigned'] += message
 
     # Return the dict of {maintainers : PR notifications},
     # the dict of {api-shephards-who-are-not-maintainers: PR notifications},

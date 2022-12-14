@@ -33,11 +33,11 @@ def term_all_children():
 
     global pid_list
     for pid in pid_list:
-        logger.info("sending TERM to PID={}".format(pid))
+        logger.info(f"sending TERM to PID={pid}")
         try:
             os.kill(pid, signal.SIGTERM)
         except OSError:
-            logger.error("error sending TERM to PID={} continuing".format(pid))
+            logger.error(f"error sending TERM to PID={pid} continuing")
 
     all_exited = False
 
@@ -62,7 +62,7 @@ def term_all_children():
         logger.info("all children exited cleanly")
     else:
         for pid in pid_list:
-            logger.info("child PID={} did not exit cleanly, killing".format(pid))
+            logger.info(f"child PID={pid} did not exit cleanly, killing")
         force_kill_all_children()
         sys.exit(1)  # error status because a child did not exit cleanly
 
@@ -74,11 +74,11 @@ def force_kill_all_children():
 
     global pid_list
     for pid in pid_list:
-        logger.warning("force killing PID={}".format(pid))
+        logger.warning(f"force killing PID={pid}")
         try:
             os.kill(pid, signal.SIGKILL)
         except OSError:
-            logger.error("error force killing PID={} continuing".format(pid))
+            logger.error(f"error force killing PID={pid} continuing")
 
     pid_list = []
 
@@ -115,11 +115,11 @@ def sigusr1_handler(signum, frame):
 
     global pid_list
     for pid in pid_list:
-        logger.info("sending SIGUSR1 to PID={}".format(pid))
+        logger.info(f"sending SIGUSR1 to PID={pid}")
         try:
             os.kill(pid, signal.SIGUSR1)
         except OSError:
-            logger.error("error in SIGUSR1 to PID={} continuing".format(pid))
+            logger.error(f"error in SIGUSR1 to PID={pid} continuing")
 
 
 def sigchld_handler(signum, frame):
@@ -146,16 +146,16 @@ def sigchld_handler(signum, frame):
             exit_code = os.WEXITSTATUS(exit_status)
             if exit_code == 0:
                 # Normal exit. We assume this was on purpose.
-                logger.info("PID={} exited with code={}".format(ret_pid, exit_code))
-                pass
+                logger.info(f"PID={ret_pid} exited with code={exit_code}")
             else:
                 # Something bad happened. We need to tear everything down so that whoever started the
                 # restarter can know about this situation and restart the whole thing.
-                logger.warning("PID={} exited with code={}".format(ret_pid, exit_code))
+                logger.warning(f"PID={ret_pid} exited with code={exit_code}")
                 kill_all_and_exit = True
         elif os.WIFSIGNALED(exit_status):
             logger.warning(
-                "PID={} was killed with signal={}".format(ret_pid, os.WTERMSIG(exit_status)))
+                f"PID={ret_pid} was killed with signal={os.WTERMSIG(exit_status)}"
+            )
             kill_all_and_exit = True
         else:
             kill_all_and_exit = True
@@ -180,7 +180,7 @@ def fork_and_exec():
 
     global restart_epoch
     os.environ['RESTART_EPOCH'] = str(restart_epoch)
-    logger.info("forking and execing new child process at epoch {}".format(restart_epoch))
+    logger.info(f"forking and execing new child process at epoch {restart_epoch}")
     restart_epoch += 1
 
     child_pid = os.fork()
@@ -189,7 +189,7 @@ def fork_and_exec():
         os.execl(sys.argv[1], sys.argv[1])
     else:
         # Parent process
-        logger.info("forked new child process with PID={}".format(child_pid))
+        logger.info(f"forked new child process with PID={child_pid}")
         pid_list.append(child_pid)
 
 
@@ -207,7 +207,7 @@ def main():
 
     init_logger()
 
-    logger.info("starting hot-restarter with target: {}".format(sys.argv[1]))
+    logger.info(f"starting hot-restarter with target: {sys.argv[1]}")
 
     signal.signal(signal.SIGTERM, sigterm_handler)
     signal.signal(signal.SIGINT, sigint_handler)

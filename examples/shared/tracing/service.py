@@ -28,27 +28,20 @@ TRACE_HEADERS_TO_PROPAGATE = [
 
 @app.route('/service/<service_number>')
 def hello(service_number):
-    return (
-        'Hello from behind Envoy (service {})! hostname: {} resolved'
-        'hostname: {}\n'.format(
-            os.environ['SERVICE_NAME'], socket.gethostname(),
-            socket.gethostbyname(socket.gethostname())))
+    return f"Hello from behind Envoy (service {os.environ['SERVICE_NAME']})! hostname: {socket.gethostname()} resolvedhostname: {socket.gethostbyname(socket.gethostname())}\n"
 
 
 @app.route('/trace/<service_number>')
 def trace(service_number):
-    headers = {}
     # call service 2 from service 1
     if int(os.environ['SERVICE_NAME']) == 1:
-        for header in TRACE_HEADERS_TO_PROPAGATE:
-            if header in request.headers:
-                headers[header] = request.headers[header]
+        headers = {
+            header: request.headers[header]
+            for header in TRACE_HEADERS_TO_PROPAGATE
+            if header in request.headers
+        }
         requests.get("http://localhost:9000/trace/2", headers=headers)
-    return (
-        'Hello from behind Envoy (service {})! hostname: {} resolved'
-        'hostname: {}\n'.format(
-            os.environ['SERVICE_NAME'], socket.gethostname(),
-            socket.gethostbyname(socket.gethostname())))
+    return f"Hello from behind Envoy (service {os.environ['SERVICE_NAME']})! hostname: {socket.gethostname()} resolvedhostname: {socket.gethostbyname(socket.gethostname())}\n"
 
 
 if __name__ == "__main__":

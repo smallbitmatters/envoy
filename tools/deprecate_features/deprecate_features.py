@@ -20,26 +20,26 @@ def deprecate_proto():
     deprecated_regex = re.compile(r'.*\/([^\/]*.proto):[^=]* ([^= ]+) =.*')
     for byte_line in grep_output.splitlines():
         line = str(byte_line)
-        match = deprecated_regex.match(line)
-        if match:
-            filenames_and_fields.add(tuple([match.group(1), match.group(2)]))
+        if match := deprecated_regex.match(line):
+            filenames_and_fields.add((match[1], match[2]))
         else:
-            print('no match in ' + line + ' please address manually!')
+            print(f'no match in {line} please address manually!')
 
     # Now discard any deprecated features already listed in runtime_features
     exiting_deprecated_regex = re.compile(r'.*"envoy.deprecated_features.(.*):(.*)",.*')
     with open('source/common/runtime/runtime_features.cc', 'r') as features:
-        for line in features.readlines():
-            match = exiting_deprecated_regex.match(line)
-            if match:
-                filenames_and_fields.discard(tuple([match.group(1), match.group(2)]))
+        for line in features:
+            if match := exiting_deprecated_regex.match(line):
+                filenames_and_fields.discard((match[1], match[2]))
 
     # Finally sort out the code to add to runtime_features.cc and a canned email for envoy-announce.
     code_snippets = []
     email_snippets = []
     for (filename, field) in filenames_and_fields:
-        code_snippets.append('    "envoy.deprecated_features.' + filename + ':' + field + '",\n')
-        email_snippets.append(field + ' from ' + filename + '\n')
+        code_snippets.append(
+            f'    "envoy.deprecated_features.{filename}:{field}' + '",\n'
+        )
+        email_snippets.append(f'{field} from {filename}' + '\n')
     code = ''.join(code_snippets)
     email = ''
     if email_snippets:
@@ -60,7 +60,10 @@ email = (
 print('\n\nSuggested envoy-announce email: \n')
 print(email)
 
-if not input('Apply relevant runtime changes? [yN] ').strip().lower() in ('y', 'yes'):
+if input('Apply relevant runtime changes? [yN] ').strip().lower() not in (
+    'y',
+    'yes',
+):
     exit(1)
 
 for line in fileinput.FileInput('source/common/runtime/runtime_features.cc', inplace=1):

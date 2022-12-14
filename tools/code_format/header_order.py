@@ -57,7 +57,7 @@ def reorder_headers(path):
     # being processed. E.g. if 'path' is source/common/common/hex.cc, this filter matches
     # "source/common/common/hex.h".
     def file_header_filter():
-        return lambda f: f.endswith('.h"') and path.endswith(f[1:-3] + '.cc')
+        return lambda f: f.endswith('.h"') and path.endswith(f'{f[1:-3]}.cc')
 
     def regex_filter(regex):
         return lambda f: re.match(regex, f)
@@ -69,7 +69,7 @@ def reorder_headers(path):
         regex_filter('<.*>'),
     ]
     for subdir in include_dir_order:
-        block_filters.append(regex_filter('"' + subdir + '/.*"'))
+        block_filters.append(regex_filter(f'"{subdir}/.*"'))
 
     blocks = []
     already_included = set([])
@@ -80,12 +80,12 @@ def reorder_headers(path):
             if line not in already_included and b(header):
                 block.append(line)
                 already_included.add(line)
-        if len(block) > 0:
+        if block:
             blocks.append(block)
 
     # Anything not covered by block_filters gets its own block.
     misc_headers = list(set(includes_lines).difference(already_included))
-    if len(misc_headers) > 0:
+    if misc_headers:
         blocks.append(misc_headers)
 
     reordered_includes_lines = '\n\n'.join(['\n'.join(sorted(block)) for block in blocks])

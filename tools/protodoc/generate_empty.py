@@ -13,14 +13,17 @@ from tools.protodoc.jinja import env as jinja_env
 
 def generate_empty_extension_docs(protodoc, extension, details, api_extensions_root):
     extension_root = pathlib.Path(details['path'])
-    path = pathlib.Path(api_extensions_root, extension_root, 'empty', extension_root.name + '.rst')
+    path = pathlib.Path(
+        api_extensions_root,
+        extension_root,
+        'empty',
+        f'{extension_root.name}.rst',
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     description = details.get('description', '')
     reflink = ''
     if 'ref' in details:
-        reflink = '%s %s.' % (
-            details['title'],
-            _protodoc.format_internal_link('configuration overview', details['ref']))
+        reflink = f"{details['title']} {_protodoc.format_internal_link('configuration overview', details['ref'])}."
     content = jinja_env.get_template("empty.rst.tpl").render(
         header=details['title'],
         description=description,

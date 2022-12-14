@@ -16,8 +16,9 @@ except ImportError:  # python 2
 
 _USER_CREDS = os.environ.get("READWRITE_USER", "")
 _KEY_CREDS = os.environ.get("READWRITE_API_KEY", "")
-BASE64_ENCODED_CREDENTIALS = base64.b64encode("{}:{}".format(_USER_CREDS,
-                                                             _KEY_CREDS).encode()).decode()
+BASE64_ENCODED_CREDENTIALS = base64.b64encode(
+    f"{_USER_CREDS}:{_KEY_CREDS}".encode()
+).decode()
 
 _ARTIFACT_HOST_URL = "https://oss.sonatype.org/service/local/staging"
 _GROUP_ID = "io.envoyproxy.envoymobile"
@@ -31,7 +32,7 @@ def _resolve_name(file):
     file_name, file_extension = os.path.splitext(file)
 
     extension = file_extension[1:]
-    if extension == "asc" or extension == "sha256":
+    if extension in ["asc", "sha256"]:
         if file_name.endswith("pom.xml"):
             return ".pom", extension
         elif file_name.endswith("javadoc.jar"):
@@ -42,19 +43,18 @@ def _resolve_name(file):
             return ".aar", extension
         elif file_name.endswith(".jar"):
             return ".jar", extension
+    elif file_name.endswith("pom"):
+        return "", "pom"
+    elif file_name.endswith("javadoc"):
+        return "-javadoc", extension
+    elif file_name.endswith("sources"):
+        return "-sources", extension
     else:
-        if file_name.endswith("pom"):
-            return "", "pom"
-        elif file_name.endswith("javadoc"):
-            return "-javadoc", extension
-        elif file_name.endswith("sources"):
-            return "-sources", extension
-        else:
-            return "", extension
+        return "", extension
 
 
 def _install_locally(version, files):
-    path = "{}/{}".format(_LOCAL_INSTALL_PATH, version)
+    path = f"{_LOCAL_INSTALL_PATH}/{version}"
 
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -92,8 +92,8 @@ def _urlopen_retried(request, max_retries=500, attempt=1, delay_sec=1):
             return _urlopen_retried(request, max_retries, attempt + 1)
         elif max_retries <= attempt:
             print(
-                "Retry limit reached. Will not continue to retry. Received error code {}".format(
-                    e.code))
+                f"Retry limit reached. Will not continue to retry. Received error code {e.code}"
+            )
             raise e
         else:
             raise e
@@ -101,17 +101,17 @@ def _urlopen_retried(request, max_retries=500, attempt=1, delay_sec=1):
 
 def _create_staging_repository(profile_id):
     try:
-        url = os.path.join(_ARTIFACT_HOST_URL, "profiles/{}/start".format(profile_id))
+        url = os.path.join(_ARTIFACT_HOST_URL, f"profiles/{profile_id}/start")
         data = {'data': {'description': ''}}
         request = Request(url)
-        request.add_header("Authorization", "Basic {}".format(BASE64_ENCODED_CREDENTIALS))
+        request.add_header("Authorization", f"Basic {BASE64_ENCODED_CREDENTIALS}")
         request.add_header("Content-Type", "application/json")
         request.get_method = lambda: "POST"
         request.data = json.dumps(data).encode("utf8")
 
         response = json.load(_urlopen_retried(request))
         staging_id = response["data"]["stagedRepositoryId"]
-        print("staging id {} was created".format(staging_id))
+        print(f"staging id {staging_id} was created")
         return staging_id
     except Exception as e:
         raise e
@@ -124,20 +124,25 @@ def _upload_files(staging_id, version, files, ascs, sha256):
     all_files = files + ascs + sha256
     for file in all_files:
         # This will output "envoy", ".aar" for "envoy.aar
-        print("Uploading file {}".format(file))
+        print(f"Uploading file {file}")
         suffix, file_extension = _resolve_name(file)
         basename = "{name}-{version}{suffix}.{extension}".format(
             name=_ARTIFACT_ID, version=version, suffix=suffix, extension=file_extension)
 
         artifact_url = os.path.join(
-            _ARTIFACT_HOST_URL, "deployByRepositoryId/{}".format(staging_id),
-            _GROUP_ID.replace('.', "/"), _ARTIFACT_ID, version, basename)
+            _ARTIFACT_HOST_URL,
+            f"deployByRepositoryId/{staging_id}",
+            _GROUP_ID.replace('.', "/"),
+            _ARTIFACT_ID,
+            version,
+            basename,
+        )
 
         try:
             with open(file, "rb") as f:
                 request = Request(artifact_url, f.read())
 
-            request.add_header("Authorization", "Basic {}".format(BASE64_ENCODED_CREDENTIALS))
+            request.add_header("Authorization", f"Basic {BASE64_ENCODED_CREDENTIALS}")
             request.add_header(
                 "Content-Type", "application/x-{extension}".format(extension=file_extension))
             request.get_method = lambda: "PUT"
@@ -146,7 +151,7 @@ def _upload_files(staging_id, version, files, ascs, sha256):
         except HTTPError as e:
             if e.code == 403:
                 # Don't need to pipe to error since we are ignoring duplicated uploads
-                print("Ignoring duplicate upload for {}".format(artifact_url))
+                print(f"Ignoring duplicate upload for {artifact_url}")
             else:
                 raise e
         except Exception as e:
@@ -156,13 +161,13 @@ def _upload_files(staging_id, version, files, ascs, sha256):
 
 
 def _close_staging_repository(profile_id, staging_id):
-    url = os.path.join(_ARTIFACT_HOST_URL, "profiles/{}/finish".format(profile_id))
+    url = os.path.join(_ARTIFACT_HOST_URL, f"profiles/{profile_id}/finish")
     data = {'data': {'stagedRepositoryId': staging_id, 'description': ''}}
 
     try:
         request = Request(url)
 
-        request.add_header("Authorization", "Basic {}".format(BASE64_ENCODED_CREDENTIALS))
+        request.add_header("Authorization", f"Basic {BASE64_ENCODED_CREDENTIALS}")
         request.add_header("Content-Type", "application/json")
         request.data = json.dumps(data).encode("utf8")
         request.get_method = lambda: "POST"
@@ -178,7 +183,7 @@ def _drop_staging_repository(staging_id, message):
     try:
         request = Request(url)
 
-        request.add_header("Authorization", "Basic {}".format(BASE64_ENCODED_CREDENTIALS))
+        request.add_header("Authorization", f"Basic {BASE64_ENCODED_CREDENTIALS}")
         request.add_header("Content-Type", "application/json")
         request.data = json.dumps(data).encode("utf8")
         request.get_method = lambda: "POST"
@@ -194,7 +199,7 @@ def _release_staging_repository(staging_id):
     try:
         request = Request(url)
 
-        request.add_header("Authorization", "Basic {}".format(BASE64_ENCODED_CREDENTIALS))
+        request.add_header("Authorization", f"Basic {BASE64_ENCODED_CREDENTIALS}")
         request.add_header("Content-Type", "application/json")
         request.data = json.dumps(data).encode("utf8")
         request.get_method = lambda: "POST"
@@ -206,11 +211,10 @@ def _release_staging_repository(staging_id):
 def _create_sha256_files(files):
     sha256_files = []
     for file in files:
-        sha256_file_name = "{}.sha256".format(file)
+        sha256_file_name = f"{file}.sha256"
         sha256 = _sha256(file)
-        sha256_file = open(sha256_file_name, 'w+')
-        sha256_file.write(sha256)
-        sha256_file.close()
+        with open(sha256_file_name, 'w+') as sha256_file:
+            sha256_file.write(sha256)
         sha256_files.append(sha256_file_name)
     return sha256_files
 
@@ -218,7 +222,7 @@ def _create_sha256_files(files):
 def _sha256(file_name):
     sha256 = hashlib.sha256()
     with open(file_name, 'rb') as file:
-        for line in file.readlines():
+        for line in file:
             sha256.update(line)
     return sha256.hexdigest()
 
@@ -308,22 +312,22 @@ if __name__ == "__main__":
                 print("Closing staging repository...")
                 _close_staging_repository(args.profile_id, staging_id)
                 print("Closing staging complete!")
-                print("Releasing artifact {}...".format(version))
+                print(f"Releasing artifact {version}...")
                 _release_staging_repository(staging_id)
                 print("Release complete!")
             else:
                 print("No files were uploaded. Dropping staging repository...")
                 _drop_staging_repository(staging_id, "droppng release due to no uploaded files")
-                print("Dropping staging id {} complete!".format(staging_id))
+                print(f"Dropping staging id {staging_id} complete!")
         except Exception as e:
             print(e)
 
             print(
-                "Unable to complete file upload. Will attempt to drop staging id: [{}]".format(
-                    staging_id))
+                f"Unable to complete file upload. Will attempt to drop staging id: [{staging_id}]"
+            )
             try:
                 _drop_staging_repository(staging_id, "droppng release due to error")
-                sys.exit("Dropping staging id: [{}] successful.".format(staging_id))
+                sys.exit(f"Dropping staging id: [{staging_id}] successful.")
             except Exception as e:
                 print(e)
-                sys.exit("Dropping staging id: [{}] failed.".format(staging_id))
+                sys.exit(f"Dropping staging id: [{staging_id}] failed.")

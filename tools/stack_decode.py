@@ -38,19 +38,18 @@ def decode_stacktrace_log(object_file, input_source, address_offset=0):
             line = input_source.readline()
             if line == "":
                 return  # EOF
-            stackaddr_match = stackaddr_re.search(line)
-            if not stackaddr_match:
-                stackaddr_match = asan_re.search(line)
-            if stackaddr_match:
+            if stackaddr_match := stackaddr_re.search(line) or asan_re.search(
+                line
+            ):
                 address = stackaddr_match.groups()[0]
                 if address_offset != 0:
                     address = hex(int(address, 16) - address_offset)
                 file_and_line_number = run_addr2line(object_file, address)
                 file_and_line_number = trim_proc_cwd(file_and_line_number)
                 if address_offset != 0:
-                    sys.stdout.write("%s->[%s] %s" % (line.strip(), address, file_and_line_number))
+                    sys.stdout.write(f"{line.strip()}->[{address}] {file_and_line_number}")
                 else:
-                    sys.stdout.write("%s %s" % (line.strip(), file_and_line_number))
+                    sys.stdout.write(f"{line.strip()} {file_and_line_number}")
                 continue
             else:
                 # Pass through print all other log lines:
@@ -90,9 +89,7 @@ def find_address_offset(pid):
     try:
         proc_memory = run_pmap(pid)
         match = re.search(r'([a-f0-9]+)\s+r-xp', proc_memory)
-        if match is None:
-            return 0
-        return int(match.group(1), 16)
+        return 0 if match is None else int(match[1], 16)
     except (subprocess.CalledProcessError, PermissionError):
         return 0
 

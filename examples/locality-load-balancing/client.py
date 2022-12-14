@@ -7,7 +7,7 @@ url, n_requests = sys.argv[1], int(sys.argv[2])
 count = Counter()
 count_fail = 0
 
-for i in range(n_requests):
+for _ in range(n_requests):
     try:
         with urllib.request.urlopen(url) as resp:
             content = resp.read().decode("utf-8").strip()

@@ -122,11 +122,7 @@ class BufWrapper(ProtoBreakingChangeDetector):
         if final_err != "":
             raise ChangeDetectorError(f"Error from buf: {final_err}")
 
-        if final_code != 0:
-            return True
-        if final_out != "":
-            return True
-        return False
+        return True if final_code != 0 else final_out != ""
 
     def get_breaking_changes(self) -> List[str]:
         _, final_out, _ = self._final_result

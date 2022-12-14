@@ -12,7 +12,7 @@ def hello():
     conn = psycopg2.connect("host=postgres user=postgres")
     cur = conn.cursor()
     cur.execute('SELECT version()')
-    msg = 'Connected to Postgres, version: %s' % cur.fetchone()
+    msg = f'Connected to Postgres, version: {cur.fetchone()}'
     cur.close()
     return msg
 

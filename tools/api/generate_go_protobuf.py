@@ -23,11 +23,9 @@ USER_EMAIL = 'go-control-plane@users.noreply.github.com'
 
 def generate_protobufs(targets, output, api_repo):
     bazel_bin = check_output(['bazel', 'info', 'bazel-bin']).decode().strip()
-    go_protos = check_output([
-        'bazel',
-        'query',
-        'kind("go_proto_library", %s)' % targets,
-    ]).split()
+    go_protos = check_output(
+        ['bazel', 'query', f'kind("go_proto_library", {targets})']
+    ).split()
 
     # Each rule has the form @envoy_api//foo/bar:baz_go_proto.
     # First build all the rules to ensure we have the output files.
@@ -53,8 +51,10 @@ def generate_protobufs(targets, output, api_repo):
         # go_out/envoy/config/bootstrap/v2
         rule_dir, proto = rule.decode().rsplit('//', 1)[1].rsplit(':', 1)
 
-        prefix = '' if not api_repo else os.path.join('external', api_repo)
-        input_dir = os.path.join(bazel_bin, prefix, rule_dir, proto + '_', IMPORT_BASE, rule_dir)
+        prefix = os.path.join('external', api_repo) if api_repo else ''
+        input_dir = os.path.join(
+            bazel_bin, prefix, rule_dir, f'{proto}_', IMPORT_BASE, rule_dir
+        )
         input_files = glob.glob(os.path.join(input_dir, '*.go'))
         output_dir = os.path.join(output, rule_dir)
 
@@ -62,13 +62,13 @@ def generate_protobufs(targets, output, api_repo):
         os.makedirs(output_dir, 0o755, exist_ok=True)
         for generated_file in input_files:
             shutil.copy(generated_file, output_dir)
-    print('Go artifacts placed into: ' + output)
+    print(f'Go artifacts placed into: {output}')
 
 
 def git(repo, *args):
     cmd = ['git']
     if repo:
-        cmd = cmd + ['-C', repo]
+        cmd += ['-C', repo]
     for arg in args:
         cmd = cmd + [arg]
     return check_output(cmd).decode()
@@ -81,17 +81,19 @@ def clone_go_protobufs(repo):
 
 def find_last_sync_sha(repo):
     # Determine last envoyproxy/envoy SHA in envoyproxy/go-control-plane
-    last_commit = git(repo, 'log', '--grep=' + MIRROR_MSG, '-n', '1', '--format=%B').strip()
+    last_commit = git(
+        repo, 'log', f'--grep={MIRROR_MSG}', '-n', '1', '--format=%B'
+    ).strip()
     # Initial SHA from which the APIs start syncing. Prior to that it was done manually.
     if last_commit == "":
         return 'e7f0b7176efdc65f96eb1697b829d1e6187f4502'
     m = re.search(MIRROR_MSG + '(\w+)', last_commit)
-    return m.group(1)
+    return m[1]
 
 
 def updated_since_sha(repo, last_sha):
     # Determine if there are changes to API since last SHA
-    return git(None, 'rev-list', '%s..HEAD' % last_sha).split()
+    return git(None, 'rev-list', f'{last_sha}..HEAD').split()
 
 
 def write_revision_info(repo, sha):
@@ -150,7 +152,7 @@ if __name__ == "__main__":
     last_sha = find_last_sync_sha(repo)
     changes = updated_since_sha(repo, last_sha)
     if updated(repo):
-        print('Changes detected: %s' % changes)
+        print(f'Changes detected: {changes}')
         new_sha = changes[0]
         write_revision_info(repo, new_sha)
         publish_go_protobufs(repo, new_sha)

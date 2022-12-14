@@ -98,13 +98,13 @@ class ExceptionHandler:
 def main(cfg):
     if cfg.unix:
         if cfg.addr == "":
-            sys.exit("invalid listener unix domain socket: {}".format(cfg.addr))
+            sys.exit(f"invalid listener unix domain socket: {cfg.addr}")
     else:
         try:
             (host, port) = cfg.addr.rsplit(":", 1)
             port = int(port)
         except ValueError:
-            sys.exit("invalid listener address: {}".format(cfg.addr))
+            sys.exit(f"invalid listener address: {cfg.addr}")
 
     if cfg.response == "success":
         handler = SuccessHandler()

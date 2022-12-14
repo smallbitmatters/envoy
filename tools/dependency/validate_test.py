@@ -14,7 +14,7 @@ class FakeDependencyInfo(object):
         self._deps = deps
 
     def deps_by_use_category(self, use_category):
-        return set(n for n, m in self._deps.items() if use_category in m['use_category'])
+        return {n for n, m in self._deps.items() if use_category in m['use_category']}
 
     def get_metadata(self, dependency):
         return self._deps.get(dependency)

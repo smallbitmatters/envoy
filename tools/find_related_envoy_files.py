@@ -31,7 +31,9 @@ INTERFACE_SYNTHETIC_ROOT = "include-envoy"
 # also the name of a subdirectory of 'include' -- the only
 # subdirectory of 'include' currently, so it's easier just to treat
 # that as a single element.
-fname = sys.argv[1].replace("/" + INTERFACE_REAL_ROOT + "/", "/" + INTERFACE_SYNTHETIC_ROOT + "/")
+fname = sys.argv[1].replace(
+    f"/{INTERFACE_REAL_ROOT}/", f"/{INTERFACE_SYNTHETIC_ROOT}/"
+)
 
 # Parse the absolute location of this repo, its relative path, and
 # file extension, exiting with no output along the way any time there
@@ -40,14 +42,14 @@ envoy_index = fname.rfind(ENVOY_ROOT)
 if envoy_index == -1:
     sys.exit(0)
 envoy_index += len(ENVOY_ROOT)
-absolute_location = fname[0:envoy_index]  # "/path/to/gitroot/envoy/"
+absolute_location = fname[:envoy_index]
 path = fname[envoy_index:]
 path_elements = path.split("/")
 if len(path_elements) < 3:
     sys.exit(0)
 leaf = path_elements[len(path_elements) - 1]
 dot = leaf.rfind(".")
-if dot == -1 or dot == len(leaf) - 1:
+if dot in [-1, len(leaf) - 1]:
     sys.exit(0)
 ext = leaf[dot:]
 
@@ -56,7 +58,7 @@ ext = leaf[dot:]
 # is emitted if the input path or extension does not match the expected pattern,
 # or if the file doesn't exist.
 def emit(source_path, dest_path, source_ending, dest_ending):
-    if fname.endswith(source_ending) and path.startswith(source_path + "/"):
+    if fname.endswith(source_ending) and path.startswith(f"{source_path}/"):
         path_len = len(path) - len(source_path) - len(source_ending)
         new_path = (
             absolute_location + dest_path + path[len(source_path):-len(source_ending)]

@@ -44,7 +44,7 @@ ACCESS_LOG_BLOB = {
 def test(writer):
     for idx, item in enumerate(ACCESS_LOG_BLOB["access_log"]):
         writer.write_test_file(
-            'Valid_idx_' + str(idx),
+            f'Valid_idx_{str(idx)}',
             schema='ACCESS_LOG_SCHEMA',
             data=get_blob(item),
             throws=False,
